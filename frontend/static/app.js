@@ -268,6 +268,7 @@ function populateLocationsDropdown() {
     select.innerHTML = `
         <option value="">All Locations</option>
         <option value="remote_only">Remote Only</option>
+        <option value="india_only">India (All Cities)</option>
     `;
     
     const uniqueLocs = [...new Set(jobsData.map(j => j.location).filter(Boolean))]
@@ -432,6 +433,9 @@ function filterAndRenderJobs() {
             if (!locFilter) return true;
             if (locFilter === "remote_only") {
                 return job.location && /remote/i.test(job.location);
+            }
+            if (locFilter === "india_only") {
+                return job.location && /india/i.test(job.location);
             }
             return job.location === locFilter;
         })();

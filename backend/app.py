@@ -21,12 +21,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Startup event to initialize DB and Scheduler
+# Startup event to initialize DB and Scheduler (serverless-aware)
 @app.on_event("startup")
 def startup_event():
-    db.init_db()
-    scheduler.start_scheduler()
-    logs.log("FastAPI backend started. Database and scheduler initialized.")
+    try:
+        db.init_db()
+        logs.log("Database initialized successfully.")
+    except Exception as e:
+        logs.log(f"WARNING: Database initialization failed: {e}")
+        
+    # Disable APScheduler in Vercel serverless functions to avoid blockages
+    if os.environ.get("VERCEL"):
+        logs.log("FastAPI backend started in serverless mode (Vercel). Scheduler thread disabled.")
+    else:
+        try:
+            scheduler.start_scheduler()
+            logs.log("FastAPI backend started. Database and scheduler initialized.")
+        except Exception as e:
+            logs.log(f"WARNING: Scheduler startup failed: {e}")
 
 # Job Status update model
 class StatusUpdate(BaseModel):

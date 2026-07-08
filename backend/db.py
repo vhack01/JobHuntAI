@@ -3,51 +3,37 @@ import os
 import json
 from datetime import datetime
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "jobs.db")
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def get_cursor(conn):
+    if DATABASE_URL:
+        return conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        return conn.cursor()
+
+def execute_sql(cursor, query, params=()):
+    if DATABASE_URL:
+        # Translate SQLite ? placeholders to Postgres %s
+        query = query.replace("?", "%s")
+    cursor.execute(query, params)
 
 def init_db():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create jobs table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        job_id TEXT UNIQUE,
-        title TEXT,
-        company TEXT,
-        location TEXT,
-        description TEXT,
-        experience TEXT,
-        tech_stack TEXT,
-        salary TEXT,
-        apply_url TEXT,
-        source TEXT,
-        date_posted TEXT,
-        date_found TEXT,
-        status TEXT DEFAULT 'New',
-        notes TEXT DEFAULT ''
-    )
-    """)
-    
-    # Try to add is_targeted column for targeted employer matching
-    try:
-        cursor.execute("ALTER TABLE jobs ADD COLUMN is_targeted INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-    
-    # Create config table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS config (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-    """)
+    cursor = get_cursor(conn)
     
     # Insert default configurations if not exist
     default_configs = {
@@ -61,16 +47,87 @@ def init_db():
         "filter_show_unspecified_exp": "true",
         "target_companies": json.dumps([])
     }
-    
-    for key, val in default_configs.items():
-        cursor.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)", (key, val))
+
+    if DATABASE_URL:
+        # Create jobs table in Postgres
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            id SERIAL PRIMARY KEY,
+            job_id VARCHAR(255) UNIQUE,
+            title TEXT,
+            company TEXT,
+            location TEXT,
+            description TEXT,
+            experience TEXT,
+            tech_stack TEXT,
+            salary TEXT,
+            apply_url TEXT,
+            source TEXT,
+            date_posted TEXT,
+            date_found TEXT,
+            status TEXT DEFAULT 'New',
+            notes TEXT DEFAULT '',
+            is_targeted INTEGER DEFAULT 0
+        )
+        """)
         
+        # Create config table in Postgres
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            key VARCHAR(255) PRIMARY KEY,
+            value TEXT
+        )
+        """)
+        
+        for key, val in default_configs.items():
+            cursor.execute("INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING", (key, val))
+            
+    else:
+        # Create jobs table in SQLite
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT UNIQUE,
+            title TEXT,
+            company TEXT,
+            location TEXT,
+            description TEXT,
+            experience TEXT,
+            tech_stack TEXT,
+            salary TEXT,
+            apply_url TEXT,
+            source TEXT,
+            date_posted TEXT,
+            date_found TEXT,
+            status TEXT DEFAULT 'New',
+            notes TEXT DEFAULT '',
+            is_targeted INTEGER DEFAULT 0
+        )
+        """)
+        
+        # Try to add is_targeted column for targeted employer matching in SQLite
+        try:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN is_targeted INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+            
+        # Create config table in SQLite
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """)
+        
+        for key, val in default_configs.items():
+            cursor.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)", (key, val))
+            
     conn.commit()
     conn.close()
 
 def get_jobs(status=None, search=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     
     query = "SELECT * FROM jobs"
     params = []
@@ -90,7 +147,7 @@ def get_jobs(status=None, search=None):
         
     query += " ORDER BY date_found DESC"
     
-    cursor.execute(query, params)
+    execute_sql(cursor, query, params)
     rows = cursor.fetchall()
     conn.close()
     
@@ -103,50 +160,73 @@ def add_job(job_data):
     but PRESERVE its status and notes.
     """
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     
     now_str = datetime.now().isoformat()
     
     # Check if job exists
-    cursor.execute("SELECT status, notes FROM jobs WHERE job_id = ?", (job_data["job_id"],))
+    execute_sql(cursor, "SELECT status, notes FROM jobs WHERE job_id = ?", (job_data["job_id"],))
     existing = cursor.fetchone()
     
     is_targeted_val = job_data.get("is_targeted", 0)
     
     if existing:
         # Update existing job, keeping status and notes, but updating is_targeted if new match is targeted
-        cursor.execute("""
-        UPDATE jobs 
-        SET title = ?, company = ?, location = ?, description = ?, 
-            experience = ?, tech_stack = ?, salary = ?, apply_url = ?, 
-            source = ?, date_posted = ?, is_targeted = MAX(COALESCE(is_targeted, 0), ?)
-        WHERE job_id = ?
-        """, (
-            job_data.get("title"),
-            job_data.get("company"),
-            job_data.get("location"),
-            job_data.get("description"),
-            job_data.get("experience", "Not specified"),
-            job_data.get("tech_stack", ""),
-            job_data.get("salary", "Not specified"),
-            job_data.get("apply_url"),
-            job_data.get("source"),
-            job_data.get("date_posted"),
-            is_targeted_val,
-            job_data["job_id"]
-        ))
+        if DATABASE_URL:
+            cursor.execute("""
+            UPDATE jobs 
+            SET title = %s, company = %s, location = %s, description = %s, 
+                experience = %s, tech_stack = %s, salary = %s, apply_url = %s, 
+                source = %s, date_posted = %s, is_targeted = GREATEST(COALESCE(is_targeted, 0), %s)
+            WHERE job_id = %s
+            """, (
+                job_data.get("title"),
+                job_data.get("company"),
+                job_data.get("location"),
+                job_data.get("description"),
+                job_data.get("experience", "Not specified"),
+                job_data.get("tech_stack", ""),
+                job_data.get("salary", "Not specified"),
+                job_data.get("apply_url"),
+                job_data.get("source"),
+                job_data.get("date_posted"),
+                is_targeted_val,
+                job_data["job_id"]
+            ))
+        else:
+            cursor.execute("""
+            UPDATE jobs 
+            SET title = ?, company = ?, location = ?, description = ?, 
+                experience = ?, tech_stack = ?, salary = ?, apply_url = ?, 
+                source = ?, date_posted = ?, is_targeted = MAX(COALESCE(is_targeted, 0), ?)
+            WHERE job_id = ?
+            """, (
+                job_data.get("title"),
+                job_data.get("company"),
+                job_data.get("location"),
+                job_data.get("description"),
+                job_data.get("experience", "Not specified"),
+                job_data.get("tech_stack", ""),
+                job_data.get("salary", "Not specified"),
+                job_data.get("apply_url"),
+                job_data.get("source"),
+                job_data.get("date_posted"),
+                is_targeted_val,
+                job_data["job_id"]
+            ))
         conn.commit()
         conn.close()
         return False # Not a new job
     else:
         # Insert new job
-        cursor.execute("""
+        query = """
         INSERT INTO jobs (
             job_id, title, company, location, description, 
             experience, tech_stack, salary, apply_url, source, 
             date_posted, date_found, status, notes, is_targeted
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', '', ?)
-        """, (
+        """
+        execute_sql(cursor, query, (
             job_data["job_id"],
             job_data.get("title"),
             job_data.get("company"),
@@ -167,39 +247,42 @@ def add_job(job_data):
 
 def update_job_status(job_id, status):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE jobs SET status = ? WHERE job_id = ?", (status, job_id))
+    cursor = get_cursor(conn)
+    execute_sql(cursor, "UPDATE jobs SET status = ? WHERE job_id = ?", (status, job_id))
     conn.commit()
     conn.close()
 
 def update_job_notes(job_id, notes):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE jobs SET notes = ? WHERE job_id = ?", (notes, job_id))
+    cursor = get_cursor(conn)
+    execute_sql(cursor, "UPDATE jobs SET notes = ? WHERE job_id = ?", (notes, job_id))
     conn.commit()
     conn.close()
 
 def get_config(key, default=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
+    cursor = get_cursor(conn)
+    execute_sql(cursor, "SELECT value FROM config WHERE key = ?", (key,))
     row = cursor.fetchone()
     conn.close()
     if row:
-        return row[0]
+        return row["value"]
     return default
 
 def set_config(key, value):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value))
+    cursor = get_cursor(conn)
+    if DATABASE_URL:
+        cursor.execute("INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (key, value))
+    else:
+        cursor.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     conn.close()
 
 def get_all_config():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT key, value FROM config")
+    cursor = get_cursor(conn)
+    execute_sql(cursor, "SELECT key, value FROM config")
     rows = cursor.fetchall()
     conn.close()
     return {row["key"]: row["value"] for row in rows}
