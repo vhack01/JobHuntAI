@@ -100,11 +100,11 @@ const elements = {
 };
 
 // Initialize Application
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     initTheme();
     setupEventListeners();
-    fetchConfig();
-    fetchJobs();
+    await fetchConfig();
+    await fetchJobs();
     startLoggingPoll();
 });
 
@@ -299,12 +299,13 @@ async function fetchJobs() {
 
 // Render Dashboard Metrics and Graph
 function updateDashboardMetrics() {
-    const total = jobsData.length;
-    const interested = jobsData.filter(j => j.status === "Interested").length;
-    const applied = jobsData.filter(j => j.status === "Applied").length;
-    const interviewing = jobsData.filter(j => j.status === "Interviewing").length;
-    const rejected = jobsData.filter(j => j.status === "Rejected").length;
-    const newList = jobsData.filter(j => j.status === "New").length;
+    const matchedJobs = jobsData.filter(matchesProfile);
+    const total = matchedJobs.length;
+    const interested = matchedJobs.filter(j => j.status === "Interested").length;
+    const applied = matchedJobs.filter(j => j.status === "Applied").length;
+    const interviewing = matchedJobs.filter(j => j.status === "Interviewing").length;
+    const rejected = matchedJobs.filter(j => j.status === "Rejected").length;
+    const newList = matchedJobs.filter(j => j.status === "New").length;
     
     elements.statTotal.innerText = total;
     elements.statInterested.innerText = interested;
@@ -330,11 +331,11 @@ function updateDashboardMetrics() {
 function renderRecentJobs() {
     elements.recentJobsTableBody.innerHTML = "";
     
-    // Take the 5 most recently found jobs
-    const recentJobs = jobsData.slice(0, 5);
+    // Apply profile matching filter first, then take the 5 most recently found jobs
+    const recentJobs = jobsData.filter(matchesProfile).slice(0, 5);
     
     if (recentJobs.length === 0) {
-        elements.recentJobsTableBody.innerHTML = `<tr><td colspan="8" class="text-center" style="color:var(--text-muted); padding: 2rem;">No jobs found yet. Click 'Search Jobs Now' to start scanning.</td></tr>`;
+        elements.recentJobsTableBody.innerHTML = `<tr><td colspan="8" class="text-center" style="color:var(--text-muted); padding: 2rem;">No jobs found matching your profile yet. Click 'Search Jobs Now' to start scanning.</td></tr>`;
         return;
     }
     
@@ -358,6 +359,47 @@ function getSalaryNumericValue(salText) {
     const values = numbers.map(n => parseInt(n, 10));
     const avgVal = values.reduce((a, b) => a + b, 0) / values.length;
     return { value: avgVal, isUsd: isUsd };
+}
+
+// Helper: Check if a job matches the user's active profile settings
+function matchesProfile(job) {
+    const defaultMaxExp = configData.filter_max_experience ? parseInt(configData.filter_max_experience, 10) : null;
+    const showUnspecified = configData.filter_show_unspecified_exp !== undefined ? (configData.filter_show_unspecified_exp === "true") : true;
+    const minSalConfig = configData.filter_min_salary ? parseInt(configData.filter_min_salary, 10) : null;
+
+    // Experience checks
+    const matchesExperience = (() => {
+        if (job.experience === "Not specified") {
+            return showUnspecified;
+        }
+        const expVal = getExperienceNumber(job.experience);
+        if (expVal === null) return showUnspecified;
+        
+        if (defaultMaxExp !== null) {
+            return expVal <= defaultMaxExp;
+        }
+        return true;
+    })();
+
+    // Salary checks
+    const matchesSalary = (() => {
+        if (minSalConfig && (!job.salary || job.salary === "Not specified")) {
+            return false;
+        }
+        if (minSalConfig) {
+            const salObj = getSalaryNumericValue(job.salary);
+            if (salObj === null) return false;
+            if (salObj.isUsd) {
+                const usdLimit = minSalConfig === 6 ? 50 : minSalConfig === 10 ? 80 : minSalConfig === 15 ? 120 : minSalConfig === 20 ? 150 : 250;
+                return salObj.value >= usdLimit;
+            } else {
+                return salObj.value >= minSalConfig;
+            }
+        }
+        return true;
+    })();
+
+    return matchesExperience && matchesSalary;
 }
 
 // Render Jobs in Main Board with Filters
