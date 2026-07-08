@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-jobspy
+apscheduler
+pandas
+openpyxl
+beautifulsoup4
+requests
+python-multipart
