@@ -380,55 +380,75 @@
                         </div>
                     </div>
 
-                    <!-- Right Section: Scheduler Configuration -->
-                    <div class="card settings-card">
-                        <div class="card-header">
-                            <h3>Scheduler Setup</h3>
-                            <p>Configure the job scraper to execute automatically twice daily.</p>
+                    <!-- Right Section: Scheduler Configuration & Resume Sync -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="card settings-card">
+                            <div class="card-header">
+                                <h3>Scheduler Setup</h3>
+                                <p>Configure the job scraper to execute automatically twice daily.</p>
+                            </div>
+                            <div class="card-body">
+                                <form id="schedulerConfigForm" class="settings-form">
+                                    <div class="form-row">
+                                        <div class="form-group col">
+                                            <label for="morningTime">Morning Scrape Time</label>
+                                            <input type="time" id="morningTime" value="09:00" class="form-control">
+                                        </div>
+                                        <div class="form-group col">
+                                            <label for="eveningTime">Evening Scrape Time</label>
+                                            <input type="time" id="eveningTime" value="18:00" class="form-control">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group col">
+                                            <label for="prefMaxExperience">Max Experience Limit (Years)</label>
+                                            <input type="number" id="prefMaxExperience" min="0" max="15" value="2" class="form-control">
+                                        </div>
+                                        <div class="form-group col" style="display: flex; align-items: center; padding-top: 1.50rem;">
+                                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                                <input type="checkbox" id="prefShowUnspecified" checked style="width: 16px; height: 16px;">
+                                                Show Unspecified Exp
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="prefMinSalary">Min Salary Filter Key (e.g. 10 LPA, $80k)</label>
+                                        <input type="text" id="prefMinSalary" placeholder="e.g. 8 LPA or $70k (leave empty for all)" class="form-control">
+                                    </div>
+
+                                    <div class="scheduler-preview-info">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                        <div>
+                                            <strong>Active Background Thread Schedule</strong>
+                                            <p>The scheduler process runs continuously locally. Modifying times will automatically reschedule active triggers.</p>
+                                        </div>
+                                    </div>
+
+                                    <button type="button" class="btn btn-primary" id="saveSettingsBtn" style="margin-top: 1rem;">
+                                        Save Configurations
+                                    </button>
+                                </form>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <form id="schedulerConfigForm" class="settings-form">
-                                <div class="form-row">
-                                    <div class="form-group col">
-                                        <label for="morningTime">Morning Scrape Time</label>
-                                        <input type="time" id="morningTime" value="09:00" class="form-control">
-                                    </div>
-                                    <div class="form-group col">
-                                        <label for="eveningTime">Evening Scrape Time</label>
-                                        <input type="time" id="eveningTime" value="18:00" class="form-control">
-                                    </div>
-                                </div>
 
-                                <div class="form-row">
-                                    <div class="form-group col">
-                                        <label for="prefMaxExperience">Max Experience Limit (Years)</label>
-                                        <input type="number" id="prefMaxExperience" min="0" max="15" value="2" class="form-control">
-                                    </div>
-                                    <div class="form-group col" style="display: flex; align-items: center; padding-top: 1.50rem;">
-                                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                            <input type="checkbox" id="prefShowUnspecified" checked style="width: 16px; height: 16px;">
-                                            Show Unspecified Exp
-                                        </label>
-                                    </div>
+                        <!-- Resume Sync Card -->
+                        <div class="card settings-card">
+                            <div class="card-header">
+                                <h3>Sync Profile from Resume</h3>
+                                <p>Upload your resume to automatically extract your tech stack, experience level, and generate matching search queries.</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="resume-upload-zone" id="resumeDropZone" style="border: 2px dashed var(--border-glass); border-radius: 12px; padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: background var(--transition-fast);">
+                                    <input type="file" id="resumeFileInput" accept=".pdf,.txt" style="display: none;">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-color); margin-bottom: 0.75rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 12 15 15"></polyline></svg>
+                                    <h5 style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">Drag & drop your resume here</h5>
+                                    <p style="color: var(--text-muted); font-size: 0.8rem; margin: 0 0 1rem 0;">Supports PDF and Plain Text (.txt)</p>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="chooseResumeBtn" style="width: 100%;">Choose File</button>
+                                    <div id="resumeFileNameDisplay" style="margin-top: 0.75rem; font-size: 0.8rem; font-weight: 500; display: none; color: var(--success-color);"></div>
                                 </div>
-
-                                <div class="form-group">
-                                    <label for="prefMinSalary">Min Salary Filter Key (e.g. 10 LPA, $80k)</label>
-                                    <input type="text" id="prefMinSalary" placeholder="e.g. 8 LPA or $70k (leave empty for all)" class="form-control">
-                                </div>
-
-                                <div class="scheduler-preview-info">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                    <div>
-                                        <strong>Active Background Thread Schedule</strong>
-                                        <p>The scheduler process runs continuously locally. Modifying times will automatically reschedule active triggers.</p>
-                                    </div>
-                                </div>
-
-                                <button type="button" class="btn btn-primary" id="saveSettingsBtn" style="margin-top: 1rem;">
-                                    Save Configurations
-                                </button>
-                            </form>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -514,6 +534,52 @@
                 <div class="job-description-markup" id="drawerDescription">
                     <!-- Description HTML/Text -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resume Review Modal -->
+    <div class="drawer-overlay" id="resumeModalOverlay" style="display: none; align-items: center; justify-content: center; z-index: 1100;">
+        <div class="card" style="width: 95%; max-width: 600px; background: var(--bg-glass); backdrop-filter: blur(20px); border: 1px solid var(--border-glass); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; max-height: 85vh;">
+            <div class="card-header" style="border-bottom: 1px solid var(--border-glass); display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem;">
+                <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Review Extracted Profile</h3>
+                <button type="button" id="closeResumeModalBtn" style="background: none; border: none; color: var(--text-color); cursor: pointer; padding: 0.25rem; display: flex; align-items: center; justify-content: center;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="card-body" style="padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0;">
+                
+                <!-- Experience Year -->
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="resumeExpInput" style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.5rem; display: block; color: var(--text-color);">Detected Experience Level (Years)</label>
+                    <input type="number" id="resumeExpInput" min="0" max="15" class="form-control" style="width: 100px; height: 38px; font-size: 0.9rem;">
+                    <small class="helper-text" style="display: block; margin-top: 0.25rem; font-size: 0.75rem;">Adjust the experience limit as needed.</small>
+                </div>
+                
+                <!-- Skills Tags -->
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.5rem; display: block; color: var(--text-color);">Extracted Technical Skills</label>
+                    <div class="tags-wrapper" id="resumeSkillsWrapper" style="margin-bottom: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; min-height: 20px;"></div>
+                    <div class="input-row" style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="resumeSkillInput" placeholder="Add custom skill (e.g. Docker, Python)..." class="form-control" style="font-size: 0.85rem; height: 36px; flex: 1; padding: 0 0.75rem;">
+                        <button type="button" class="btn btn-secondary btn-sm" id="addResumeSkillBtn" style="height: 36px; padding: 0 1rem; font-size: 0.8rem;">Add</button>
+                    </div>
+                    <small class="helper-text" style="display: block; margin-top: 0.25rem; font-size: 0.75rem;">We will search job descriptions matching these technologies.</small>
+                </div>
+                
+                <!-- Suggested Search Queries (Checkboxes) -->
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.5rem; display: block; color: var(--text-color);">Suggested Search Queries</label>
+                    <div id="resumeKeywordsList" style="display: flex; flex-direction: column; gap: 0.6rem; background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-glass); max-height: 180px; overflow-y: auto;">
+                        <!-- Checkboxes populated dynamically -->
+                    </div>
+                    <small class="helper-text" style="display: block; margin-top: 0.25rem; font-size: 0.75rem;">Select the queries you want to run automatically twice daily.</small>
+                </div>
+
+            </div>
+            <div class="card-footer" style="border-top: 1px solid var(--border-glass); padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; background: rgba(0,0,0,0.15);">
+                <button type="button" class="btn btn-secondary btn-sm" id="cancelResumeBtn" style="height: 36px; padding: 0 1rem;">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="applyResumeBtn" style="height: 36px; padding: 0 1.25rem;">Apply to Search Profile</button>
             </div>
         </div>
     </div>

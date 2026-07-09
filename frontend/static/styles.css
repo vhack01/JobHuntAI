@@ -1243,3 +1243,14 @@ body {
     font-size: 0.85rem;
     max-width: 320px;
 }
+
+/* Resume upload dropzone hover animations */
+.resume-upload-zone:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.resume-upload-zone:active {
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+

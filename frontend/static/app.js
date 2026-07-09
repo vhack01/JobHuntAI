@@ -5,6 +5,11 @@ let activePanel = "dashboard";
 let activeJob = null;
 let isSyncing = false;
 let logInterval = null;
+let parsedResumeData = {
+    experience: 2,
+    skills: [],
+    suggested_keywords: []
+};
 
 // DOM Elements
 const elements = {
@@ -78,6 +83,21 @@ const elements = {
     uploadFileName: document.getElementById("uploadFileName"),
     triggerBulkUploadBtn: document.getElementById("triggerBulkUploadBtn"),
     saveSettingsBtn: document.getElementById("saveSettingsBtn"),
+    
+    // Resume Sync
+    resumeDropZone: document.getElementById("resumeDropZone"),
+    resumeFileInput: document.getElementById("resumeFileInput"),
+    chooseResumeBtn: document.getElementById("chooseResumeBtn"),
+    resumeFileNameDisplay: document.getElementById("resumeFileNameDisplay"),
+    resumeModalOverlay: document.getElementById("resumeModalOverlay"),
+    closeResumeModalBtn: document.getElementById("closeResumeModalBtn"),
+    resumeExpInput: document.getElementById("resumeExpInput"),
+    resumeSkillsWrapper: document.getElementById("resumeSkillsWrapper"),
+    resumeSkillInput: document.getElementById("resumeSkillInput"),
+    addResumeSkillBtn: document.getElementById("addResumeSkillBtn"),
+    resumeKeywordsList: document.getElementById("resumeKeywordsList"),
+    cancelResumeBtn: document.getElementById("cancelResumeBtn"),
+    applyResumeBtn: document.getElementById("applyResumeBtn"),
     
     // Drawer
     drawerOverlay: document.getElementById("drawerOverlay"),
@@ -195,6 +215,51 @@ function setupEventListeners() {
     
     // Settings Saving
     elements.saveSettingsBtn.addEventListener("click", saveSettings);
+    
+    // Resume Dropzone & File Input triggers
+    elements.chooseResumeBtn.addEventListener("click", () => elements.resumeFileInput.click());
+    elements.resumeDropZone.addEventListener("click", (e) => {
+        if (e.target !== elements.chooseResumeBtn) {
+            elements.resumeFileInput.click();
+        }
+    });
+    
+    // Drag & Drop handlers
+    elements.resumeDropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        elements.resumeDropZone.style.background = "rgba(255, 255, 255, 0.05)";
+    });
+    elements.resumeDropZone.addEventListener("dragleave", () => {
+        elements.resumeDropZone.style.background = "none";
+    });
+    elements.resumeDropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        elements.resumeDropZone.style.background = "none";
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            handleResumeUpload(file);
+        }
+    });
+    
+    // File change handler
+    elements.resumeFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            handleResumeUpload(file);
+        }
+    });
+
+    // Resume Modal handlers
+    elements.closeResumeModalBtn.addEventListener("click", closeResumeModal);
+    elements.cancelResumeBtn.addEventListener("click", closeResumeModal);
+    elements.addResumeSkillBtn.addEventListener("click", addResumeSkillFromInput);
+    elements.resumeSkillInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            addResumeSkillFromInput();
+        }
+    });
+    elements.applyResumeBtn.addEventListener("click", applyResumeProfileSettings);
     
     // Logs Clear
     elements.clearLogsBtn.addEventListener("click", clearLogs);
@@ -1040,6 +1105,172 @@ async function saveSettings() {
     } catch (error) {
         console.error("Save config error:", error);
         showToast("Failed to save settings configurations.", "error");
+    }
+}
+
+// Resume Parsing API Client & UI Helpers
+async function handleResumeUpload(file) {
+    if (isSyncing) return;
+    
+    // Check file type
+    const filename = file.name.toLowerCase();
+    if (!filename.endsWith(".pdf") && !filename.endsWith(".txt")) {
+        showToast("Please select a PDF or Plain Text (.txt) resume.", "warning");
+        return;
+    }
+    
+    isSyncing = true;
+    elements.chooseResumeBtn.disabled = true;
+    elements.chooseResumeBtn.innerText = "Parsing Resume...";
+    
+    showToast(`Uploading and parsing '${file.name}'...`, "info");
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    try {
+        const response = await fetch("/api/resume/parse", {
+            method: "POST",
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Failed to parse resume.");
+        }
+        
+        const data = await response.json();
+        
+        // Save parsed data locally
+        parsedResumeData = {
+            experience: data.experience,
+            skills: data.skills || [],
+            suggested_keywords: data.suggested_keywords || []
+        };
+        
+        // Show review modal
+        openResumeModal();
+        showToast("Resume parsed successfully! Please review the extracted settings.", "success");
+        
+    } catch (error) {
+        console.error("Resume upload error:", error);
+        showToast(error.message || "Error parsing your resume file.", "error");
+    } finally {
+        isSyncing = false;
+        elements.chooseResumeBtn.disabled = false;
+        elements.chooseResumeBtn.innerText = "Choose File";
+        elements.resumeFileInput.value = ""; // Reset
+    }
+}
+
+function openResumeModal() {
+    elements.resumeModalOverlay.style.display = "flex";
+    elements.resumeExpInput.value = parsedResumeData.experience;
+    renderResumeSkills();
+    renderResumeKeywords();
+}
+
+function closeResumeModal() {
+    elements.resumeModalOverlay.style.display = "none";
+}
+
+function renderResumeSkills() {
+    elements.resumeSkillsWrapper.innerHTML = "";
+    parsedResumeData.skills.forEach((skill, index) => {
+        const badge = document.createElement("span");
+        badge.className = "tag-badge";
+        badge.style.cssText = "display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; background: var(--border-glass); border: 1px solid var(--border-glass-focus); color: var(--text-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;";
+        badge.innerHTML = `
+            ${skill}
+            <span style="cursor:pointer; font-weight: bold; margin-left: 2px; color: var(--text-muted);" onclick="removeResumeSkill(${index})">&times;</span>
+        `;
+        elements.resumeSkillsWrapper.appendChild(badge);
+    });
+}
+
+// Make globally accessible so the inline onclick works
+window.removeResumeSkill = function(index) {
+    parsedResumeData.skills.splice(index, 1);
+    renderResumeSkills();
+};
+
+function addResumeSkillFromInput() {
+    const val = elements.resumeSkillInput.value.trim();
+    if (val) {
+        // Capitalize nicely if it's not present
+        if (!parsedResumeData.skills.some(s => s.toLowerCase() === val.toLowerCase())) {
+            parsedResumeData.skills.push(val);
+            renderResumeSkills();
+        }
+        elements.resumeSkillInput.value = "";
+    }
+}
+
+function renderResumeKeywords() {
+    elements.resumeKeywordsList.innerHTML = "";
+    if (parsedResumeData.suggested_keywords.length === 0) {
+        elements.resumeKeywordsList.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 0.5rem 0;">No query suggestions found.</div>`;
+        return;
+    }
+    
+    parsedResumeData.suggested_keywords.forEach((kw, index) => {
+        const item = document.createElement("label");
+        item.style.cssText = "display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: var(--text-color); margin: 0;";
+        item.innerHTML = `
+            <input type="checkbox" value="${kw}" checked style="width: 15px; height: 15px; cursor: pointer;">
+            <span>${kw}</span>
+        `;
+        elements.resumeKeywordsList.appendChild(item);
+    });
+}
+
+async function applyResumeProfileSettings() {
+    const selectedKeywords = Array.from(elements.resumeKeywordsList.querySelectorAll("input[type='checkbox']:checked")).map(el => el.value);
+    const expValue = parseInt(elements.resumeExpInput.value, 10);
+    
+    if (isNaN(expValue) || expValue < 0) {
+        showToast("Please enter a valid experience year count.", "warning");
+        return;
+    }
+    
+    if (selectedKeywords.length === 0) {
+        showToast("Please select at least one search query to continue.", "warning");
+        return;
+    }
+    
+    elements.applyResumeBtn.disabled = true;
+    elements.applyResumeBtn.innerText = "Applying...";
+    
+    const payload = {
+        experience: expValue,
+        skills: parsedResumeData.skills,
+        keywords: selectedKeywords
+    };
+    
+    try {
+        const response = await fetch("/api/resume/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error("Failed to apply resume settings.");
+        }
+        
+        showToast("Search profile synced with resume!", "success");
+        closeResumeModal();
+        
+        // Reload all data in the UI
+        fetchConfig();
+        fetchJobs();
+        
+    } catch (error) {
+        console.error("Apply resume settings error:", error);
+        showToast("Error updating configurations.", "error");
+    } finally {
+        elements.applyResumeBtn.disabled = false;
+        elements.applyResumeBtn.innerText = "Apply to Search Profile";
     }
 }
 

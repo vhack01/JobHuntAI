@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Body, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -295,6 +296,8 @@ def export_jobs_excel():
                 for cell in sheet[1]:
                     cell.font = cell.font.copy(bold=True)
                     
+            workbook.save(filename=None) # Keep raw bytes stream
+            
         output.seek(0)
         
         headers = {
@@ -307,6 +310,166 @@ def export_jobs_excel():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Master tech keywords list for resume matching
+MASTER_SKILLS = [
+    # Languages
+    "Python", "Java", "JavaScript", "TypeScript", "Go", "Golang", "Rust", "C++", "C#", "Ruby", "PHP", "Swift", "Kotlin", "Scala",
+    # Backend Frameworks
+    "Spring Boot", "Spring", "FastAPI", "Django", "Flask", "Express", "Node.js", "NestJS", "Ruby on Rails", "Laravel", "ASP.NET",
+    # Frontend
+    "React", "Angular", "Vue", "Svelte", "Next.js", "Nuxt.js", "Redux", "HTML5", "CSS3", "Tailwind",
+    # Databases & Cache
+    "PostgreSQL", "MySQL", "SQLite", "MongoDB", "Redis", "Cassandra", "DynamoDB", "Elasticsearch", "Oracle",
+    # Cloud & DevOps
+    "AWS", "Google Cloud", "GCP", "Azure", "Docker", "Kubernetes", "Terraform", "Ansible", "CI/CD", "Jenkins", "GitLab", "GitHub Actions",
+    # AI & Messaging
+    "LangGraph", "LangChain", "OpenAI", "PyTorch", "TensorFlow", "Pandas", "NumPy", "Apache Spark", "Kafka", "REST API", "GraphQL", "Microservices"
+]
+
+COMMON_TITLES = [
+    "Software Engineer", "Software Developer", "Full Stack Developer", "Full Stack Engineer", 
+    "Backend Engineer", "Backend Developer", "Frontend Engineer", "Frontend Developer", 
+    "Data Engineer", "Data Scientist", "AI Engineer", "Machine Learning Engineer", 
+    "DevOps Engineer", "Cloud Engineer", "Android Developer", "iOS Developer"
+]
+
+class ResumeApplyModel(BaseModel):
+    experience: int
+    skills: list
+    keywords: list
+
+@app.post("/api/resume/parse")
+async def parse_resume(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    
+    if not (filename.endswith(".pdf") or filename.endswith(".txt")):
+        raise HTTPException(status_code=400, detail="Only PDF and TXT files are supported.")
+        
+    try:
+        # Read raw bytes
+        file_bytes = await file.read()
+        
+        # Extract text content
+        if filename.endswith(".pdf"):
+            pdf_file = io.BytesIO(file_bytes)
+            reader = PdfReader(pdf_file)
+            text = ""
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+        else:
+            text = file_bytes.decode("utf-8", errors="ignore")
+            
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found in the uploaded file.")
+            
+        # Parse Experience level
+        experience_years = 2 # Default fallback
+        exp_patterns = [
+            r'(\d+)\s*\+\s*years?\s*(?:of)?\s*experience',
+            r'experience\s*(?:of|:)?\s*(\d+)\s*(?:\+)?\s*years?',
+            r'(\d+)\s*(?:to|-)\s*(\d+)\s*years?\s*(?:of)?\s*experience',
+            r'(\d+)\s*years?\s*experience',
+            r'(\d+)\s*yrs?\s*experience'
+        ]
+        for pattern in exp_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                experience_years = int(groups[0])
+                break
+        else:
+            # Fallback search
+            match = re.search(r'\bexperience\b.{0,30}\b(\d+)\b', text, re.IGNORECASE | re.DOTALL)
+            if match:
+                experience_years = int(match.group(1))
+                
+        # Bound experience to reasonable developer limits (0 to 15)
+        experience_years = max(0, min(15, experience_years))
+        
+        # Extract skills
+        extracted_skills = []
+        text_lower = text.lower()
+        for skill in MASTER_SKILLS:
+            pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+            if "ci/cd" in skill.lower() or "/" in skill:
+                pattern = re.escape(skill.lower())
+            if re.search(pattern, text_lower):
+                extracted_skills.append(skill)
+                
+        # Fallback if no skills matched
+        if not extracted_skills:
+            extracted_skills = ["Java", "Spring Boot", "React", "Python"]
+            
+        # Extract Job Titles to suggest search keywords
+        detected_titles = []
+        for title in COMMON_TITLES:
+            pattern = r'\b' + re.escape(title.lower()) + r'\b'
+            if re.search(pattern, text_lower):
+                detected_titles.append(title)
+                
+        # Suggest Search Keywords based on titles and primary skills
+        suggestions = []
+        primary_skills = [s for s in extracted_skills if s in ["Java", "Python", "React", "TypeScript", "Go", "AWS", "Rust", "Node.js"]][:3]
+        if not detected_titles:
+            detected_titles = ["Software Engineer", "Backend Developer"]
+            
+        for title in detected_titles[:2]:
+            suggestions.append(title)
+            for skill in primary_skills:
+                suggestions.append(f"{title} {skill}")
+                
+        # Add tech combos
+        if "Java" in extracted_skills and "Spring Boot" in extracted_skills:
+            suggestions.append("Java Spring Boot Developer")
+        if "Python" in extracted_skills and "FastAPI" in extracted_skills:
+            suggestions.append("FastAPI Python Backend")
+        if "React" in extracted_skills and "TypeScript" in extracted_skills:
+            suggestions.append("React TypeScript Developer")
+            
+        # Deduplicate suggestions
+        seen = set()
+        deduped_suggestions = []
+        for s in suggestions:
+            if s.lower() not in seen:
+                seen.add(s.lower())
+                deduped_suggestions.append(s)
+                
+        return {
+            "status": "success",
+            "experience": experience_years,
+            "skills": extracted_skills,
+            "suggested_keywords": deduped_suggestions[:6],
+            "filename": file.filename
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse resume: {str(e)}")
+
+@app.post("/api/resume/apply")
+async def apply_resume_profile(data: ResumeApplyModel):
+    try:
+        # Update database configs
+        db.set_config("filter_max_experience", str(data.experience))
+        db.set_config("tech_keywords", json.dumps(data.skills))
+        db.set_config("search_keywords", json.dumps(data.keywords))
+        
+        # Reschedule scraping runs with new keywords
+        try:
+            scheduler.reschedule_jobs()
+        except Exception as se:
+            logs.log(f"Rescheduling failed on resume sync: {se}")
+            
+        logs.log(f"Synced job hunt search profile with uploaded resume data. Active experience limit set to <= {data.experience} years.")
+        
+        return {
+            "status": "success",
+            "message": "Successfully applied resume settings to search profile."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Serving static frontend folder
 # Ensure folder exists first

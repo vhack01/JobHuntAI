@@ -9,21 +9,35 @@ from jobspy import scrape_jobs
 from backend import db
 from backend.logs import log
 
-# Supported tech keywords for matching (case-insensitive)
-TECH_KEYWORDS = [
-    "Java", "Spring Boot", "Spring", "Hibernate", "JPA", "Hibernate/JPA",
-    "React", "ReactJS", "Redux", "TypeScript", "JavaScript", "HTML5", "CSS3",
-    "LangChain", "LangGraph", "Python", "FastAPI", "REST API", "Microservices",
-    "MySQL", "PostgreSQL", "Redis", "Apache Kafka", "Kafka", "Apache Spark", "Spark",
-    "AWS", "Docker", "Kubernetes", "Terraform", "GitLab CI/CD", "Git", "Datadog", "Grafana", "K6"
-]
-
 def extract_tech_stack(text):
     if not text:
         return ""
+        
+    # Load tech keywords dynamically from the database config
+    tech_keywords_str = db.get_config("tech_keywords")
+    if tech_keywords_str:
+        try:
+            tech_keywords = json.loads(tech_keywords_str)
+        except Exception:
+            tech_keywords = [
+                "Java", "Spring Boot", "Spring", "Hibernate", "JPA", "Hibernate/JPA",
+                "React", "ReactJS", "Redux", "TypeScript", "JavaScript", "HTML5", "CSS3",
+                "LangChain", "LangGraph", "Python", "FastAPI", "REST API", "Microservices",
+                "MySQL", "PostgreSQL", "Redis", "Apache Kafka", "Kafka", "Apache Spark", "Spark",
+                "AWS", "Docker", "Kubernetes", "Terraform", "GitLab CI/CD", "Git", "Datadog", "Grafana", "K6"
+            ]
+    else:
+        tech_keywords = [
+            "Java", "Spring Boot", "Spring", "Hibernate", "JPA", "Hibernate/JPA",
+            "React", "ReactJS", "Redux", "TypeScript", "JavaScript", "HTML5", "CSS3",
+            "LangChain", "LangGraph", "Python", "FastAPI", "REST API", "Microservices",
+            "MySQL", "PostgreSQL", "Redis", "Apache Kafka", "Kafka", "Apache Spark", "Spark",
+            "AWS", "Docker", "Kubernetes", "Terraform", "GitLab CI/CD", "Git", "Datadog", "Grafana", "K6"
+        ]
+        
     matched = []
     text_lower = text.lower()
-    for tech in TECH_KEYWORDS:
+    for tech in tech_keywords:
         pattern = r'\b' + re.escape(tech.lower()) + r'\b'
         if "ci/cd" in tech.lower() or "hibernate/jpa" in tech.lower() or "/" in tech:
             pattern = re.escape(tech.lower())

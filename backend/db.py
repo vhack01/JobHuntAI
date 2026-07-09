@@ -35,6 +35,14 @@ def init_db():
     conn = get_db_connection()
     cursor = get_cursor(conn)
     
+    default_tech_keywords = [
+        "Java", "Spring Boot", "Spring", "Hibernate", "JPA", "Hibernate/JPA",
+        "React", "ReactJS", "Redux", "TypeScript", "JavaScript", "HTML5", "CSS3",
+        "LangChain", "LangGraph", "Python", "FastAPI", "REST API", "Microservices",
+        "MySQL", "PostgreSQL", "Redis", "Apache Kafka", "Kafka", "Apache Spark", "Spark",
+        "AWS", "Docker", "Kubernetes", "Terraform", "GitLab CI/CD", "Git", "Datadog", "Grafana", "K6"
+    ]
+    
     # Insert default configurations if not exist
     default_configs = {
         "search_keywords": json.dumps(["Java Spring Boot Kafka", "LangGraph AI Agent", "FastAPI Python Backend", "Software Engineer Java AWS"]),
@@ -45,7 +53,8 @@ def init_db():
         "next_run": "Pending Scheduler",
         "filter_max_experience": "2",
         "filter_show_unspecified_exp": "true",
-        "target_companies": json.dumps([])
+        "target_companies": json.dumps([]),
+        "tech_keywords": json.dumps(default_tech_keywords)
     }
 
     if DATABASE_URL:
