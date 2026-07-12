@@ -35,6 +35,10 @@ def run_daily_active_check():
         update_next_run_time()
 
 def update_next_run_time():
+    if not scheduler.running:
+        db.set_config("next_run", "Disabled (Serverless Mode)")
+        return
+        
     next_runs = []
     for job in scheduler.get_jobs():
         next_run = job.next_run_time
@@ -52,6 +56,10 @@ def start_scheduler():
     log("Background scheduler started successfully.")
 
 def reschedule_jobs():
+    if not scheduler.running:
+        log("Scheduler is not running (serverless mode). Skipping reschedule_jobs.")
+        return
+        
     for job in list(scheduler.get_jobs()):
         scheduler.remove_job(job.id)
         

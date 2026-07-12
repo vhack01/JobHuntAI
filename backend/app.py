@@ -77,10 +77,14 @@ def update_job_notes(job_id: str, body: NotesUpdate):
 @app.post("/api/jobs/scrape")
 def trigger_scrape(background_tasks: BackgroundTasks):
     try:
-        # Check if already running or just trigger in background
-        background_tasks.add_task(scheduler.run_background_scrape)
-        logs.log("Manual scrape triggered by user.")
-        return {"status": "started", "message": "Scrape task initiated in background."}
+        if os.environ.get("VERCEL"):
+            logs.log("Vercel environment detected. Executing manual jobs scrape synchronously...")
+            scheduler.run_background_scrape()
+            return {"status": "success", "message": "Manual scrape completed synchronously."}
+        else:
+            background_tasks.add_task(scheduler.run_background_scrape)
+            logs.log("Manual scrape triggered by user.")
+            return {"status": "started", "message": "Scrape task initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -92,9 +96,15 @@ def trigger_company_scrape(body: CompanyScrapeRequest, background_tasks: Backgro
     try:
         if not body.company or not body.company.strip():
             raise HTTPException(status_code=400, detail="Company name is required.")
-        background_tasks.add_task(scraper.run_company_search, body.company.strip())
-        logs.log(f"Manual single-company scan triggered for: '{body.company}'")
-        return {"status": "started", "message": f"Scan for '{body.company}' initiated in background."}
+        comp_clean = body.company.strip()
+        if os.environ.get("VERCEL"):
+            logs.log(f"Vercel environment detected. Executing manual company scan for '{comp_clean}' synchronously...")
+            scraper.run_company_search(comp_clean)
+            return {"status": "success", "message": f"Scan for '{comp_clean}' completed synchronously."}
+        else:
+            background_tasks.add_task(scraper.run_company_search, comp_clean)
+            logs.log(f"Manual single-company scan triggered for: '{comp_clean}'")
+            return {"status": "started", "message": f"Scan for '{comp_clean}' initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -102,18 +112,28 @@ def trigger_company_scrape(body: CompanyScrapeRequest, background_tasks: Backgro
 def trigger_scrape_careers(background_tasks: BackgroundTasks):
     try:
         from backend import career_scraper
-        background_tasks.add_task(career_scraper.scrape_all_careers)
-        logs.log("Manual targeted company careers scrape triggered by user.")
-        return {"status": "started", "message": "Company careers scrape task initiated in background."}
+        if os.environ.get("VERCEL"):
+            logs.log("Vercel environment detected. Executing manual career boards scrape synchronously...")
+            career_scraper.scrape_all_careers()
+            return {"status": "success", "message": "Careers boards scrape completed synchronously."}
+        else:
+            background_tasks.add_task(career_scraper.scrape_all_careers)
+            logs.log("Manual targeted company careers scrape triggered by user.")
+            return {"status": "started", "message": "Company careers scrape task initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/jobs/sync-active-status")
 def trigger_sync_active_status(background_tasks: BackgroundTasks):
     try:
-        background_tasks.add_task(scraper.sync_active_status_job)
-        logs.log("Manual job active status check triggered by user.")
-        return {"status": "started", "message": "Active status verification task initiated in background."}
+        if os.environ.get("VERCEL"):
+            logs.log("Vercel environment detected. Executing manual active status sync synchronously...")
+            scraper.sync_active_status_job()
+            return {"status": "success", "message": "Active status verification completed synchronously."}
+        else:
+            background_tasks.add_task(scraper.sync_active_status_job)
+            logs.log("Manual job active status check triggered by user.")
+            return {"status": "started", "message": "Active status verification task initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

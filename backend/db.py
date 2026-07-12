@@ -3,6 +3,23 @@ import os
 import json
 from datetime import datetime
 
+# Try to load local .env file if it exists (useful for local runs connecting to Cloud Postgres)
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+if os.path.exists(env_path):
+    try:
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    # Strip quotes if they surround the value
+                    val_str = val.strip()
+                    if (val_str.startswith('"') and val_str.endswith('"')) or (val_str.startswith("'") and val_str.endswith("'")):
+                        val_str = val_str[1:-1]
+                    os.environ[key.strip()] = val_str
+    except Exception:
+        pass
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
