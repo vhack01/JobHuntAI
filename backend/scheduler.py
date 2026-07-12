@@ -10,10 +10,27 @@ scheduler = BackgroundScheduler()
 def run_background_scrape():
     try:
         log("Triggering scheduled background job scrape...")
+        
+        # 1. Scrape standard job portals
         new_jobs, total = scraper.run_job_search()
-        log(f"Scheduled background scrape complete. Added {new_jobs} new jobs (Scraped: {total}).")
+        log(f"Scheduled portal scrape complete. Added {new_jobs} new jobs (Scraped: {total}).")
+        
+        # 2. Scrape target company career boards
+        from backend import career_scraper
+        career_jobs = career_scraper.scrape_all_careers()
+        log(f"Scheduled career pages scrape complete. Added {career_jobs} new jobs.")
+        
     except Exception as e:
         log(f"Error in background scrape: {e}")
+    finally:
+        update_next_run_time()
+
+def run_daily_active_check():
+    try:
+        log("Triggering daily active status verification check...")
+        scraper.sync_active_status_job()
+    except Exception as e:
+        log(f"Error in daily active status check: {e}")
     finally:
         update_next_run_time()
 
@@ -22,9 +39,9 @@ def update_next_run_time():
     for job in scheduler.get_jobs():
         next_run = job.next_run_time
         if next_run:
-            next_runs.append(next_run.strftime("%Y-%m-%d %H:%M:%S"))
+            next_runs.append(f"{job.id}: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
     if next_runs:
-        db.set_config("next_run", ", ".join(next_runs))
+        db.set_config("next_run", " | ".join(next_runs))
     else:
         db.set_config("next_run", "Not scheduled")
 
@@ -62,5 +79,15 @@ def reschedule_jobs():
         log(f"Scheduled evening scrape for {evening_time}")
     except Exception as e:
         log(f"Failed to schedule evening job for {evening_time}: {e}")
+        
+    try:
+        scheduler.add_job(
+            run_daily_active_check,
+            CronTrigger(hour=3, minute=0),
+            id="daily_active_check"
+        )
+        log("Scheduled daily active status verification check for 03:00 AM")
+    except Exception as e:
+        log(f"Failed to schedule daily active check: {e}")
         
     update_next_run_time()

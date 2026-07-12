@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 import pandas as pd
 from pydantic import BaseModel
+from pypdf import PdfReader
 
 from backend import db, scraper, scheduler, logs
 
@@ -50,9 +51,9 @@ class NotesUpdate(BaseModel):
     notes: str
 
 @app.get("/api/jobs")
-def get_jobs(status: str = None, search: str = None):
+def get_jobs(status: str = None, search: str = None, portal_type: str = None, active_only: bool = False):
     try:
-        return db.get_jobs(status=status, search=search)
+        return db.get_jobs(status=status, search=search, portal_type=portal_type, active_only=active_only)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -94,6 +95,25 @@ def trigger_company_scrape(body: CompanyScrapeRequest, background_tasks: Backgro
         background_tasks.add_task(scraper.run_company_search, body.company.strip())
         logs.log(f"Manual single-company scan triggered for: '{body.company}'")
         return {"status": "started", "message": f"Scan for '{body.company}' initiated in background."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/jobs/scrape-careers")
+def trigger_scrape_careers(background_tasks: BackgroundTasks):
+    try:
+        from backend import career_scraper
+        background_tasks.add_task(career_scraper.scrape_all_careers)
+        logs.log("Manual targeted company careers scrape triggered by user.")
+        return {"status": "started", "message": "Company careers scrape task initiated in background."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/jobs/sync-active-status")
+def trigger_sync_active_status(background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(scraper.sync_active_status_job)
+        logs.log("Manual job active status check triggered by user.")
+        return {"status": "started", "message": "Active status verification task initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

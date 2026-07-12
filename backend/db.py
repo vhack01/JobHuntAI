@@ -76,9 +76,21 @@ def init_db():
             date_found TEXT,
             status TEXT DEFAULT 'New',
             notes TEXT DEFAULT '',
-            is_targeted INTEGER DEFAULT 0
+            is_targeted INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            portal_type TEXT DEFAULT 'Portal'
         )
         """)
+        
+        # Alter Postgres jobs table to add columns if they don't exist
+        try:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS portal_type TEXT DEFAULT 'Portal'")
+        except Exception:
+            pass
         
         # Create config table in Postgres
         cursor.execute("""
@@ -110,13 +122,23 @@ def init_db():
             date_found TEXT,
             status TEXT DEFAULT 'New',
             notes TEXT DEFAULT '',
-            is_targeted INTEGER DEFAULT 0
+            is_targeted INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            portal_type TEXT DEFAULT 'Portal'
         )
         """)
         
-        # Try to add is_targeted column for targeted employer matching in SQLite
+        # Try to add columns for targeted matching and status tracking in SQLite
         try:
             cursor.execute("ALTER TABLE jobs ADD COLUMN is_targeted INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN portal_type TEXT DEFAULT 'Portal'")
         except sqlite3.OperationalError:
             pass
             
@@ -134,7 +156,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def get_jobs(status=None, search=None):
+def get_jobs(status=None, search=None, portal_type=None, active_only=False):
     conn = get_db_connection()
     cursor = get_cursor(conn)
     
@@ -145,6 +167,13 @@ def get_jobs(status=None, search=None):
     if status:
         conditions.append("status = ?")
         params.append(status)
+        
+    if portal_type:
+        conditions.append("portal_type = ?")
+        params.append(portal_type)
+        
+    if active_only:
+        conditions.append("is_active = 1")
         
     if search:
         conditions.append("(title LIKE ? OR company LIKE ? OR tech_stack LIKE ? OR description LIKE ?)")
@@ -167,6 +196,7 @@ def add_job(job_data):
     Inserts a job into the DB. 
     If the job already exists (unique job_id), update its details,
     but PRESERVE its status and notes.
+    Also mark is_active = 1 as it was re-scraped, and set portal_type.
     """
     conn = get_db_connection()
     cursor = get_cursor(conn)
@@ -178,15 +208,17 @@ def add_job(job_data):
     existing = cursor.fetchone()
     
     is_targeted_val = job_data.get("is_targeted", 0)
+    ptype = job_data.get("portal_type", "Portal")
     
     if existing:
-        # Update existing job, keeping status and notes, but updating is_targeted if new match is targeted
+        # Update existing job, keeping status and notes, but updating is_targeted, is_active, portal_type
         if DATABASE_URL:
             cursor.execute("""
             UPDATE jobs 
             SET title = %s, company = %s, location = %s, description = %s, 
                 experience = %s, tech_stack = %s, salary = %s, apply_url = %s, 
-                source = %s, date_posted = %s, is_targeted = GREATEST(COALESCE(is_targeted, 0), %s)
+                source = %s, date_posted = %s, is_targeted = GREATEST(COALESCE(is_targeted, 0), %s),
+                is_active = 1, portal_type = %s
             WHERE job_id = %s
             """, (
                 job_data.get("title"),
@@ -200,6 +232,7 @@ def add_job(job_data):
                 job_data.get("source"),
                 job_data.get("date_posted"),
                 is_targeted_val,
+                ptype,
                 job_data["job_id"]
             ))
         else:
@@ -207,7 +240,8 @@ def add_job(job_data):
             UPDATE jobs 
             SET title = ?, company = ?, location = ?, description = ?, 
                 experience = ?, tech_stack = ?, salary = ?, apply_url = ?, 
-                source = ?, date_posted = ?, is_targeted = MAX(COALESCE(is_targeted, 0), ?)
+                source = ?, date_posted = ?, is_targeted = MAX(COALESCE(is_targeted, 0), ?),
+                is_active = 1, portal_type = ?
             WHERE job_id = ?
             """, (
                 job_data.get("title"),
@@ -221,6 +255,7 @@ def add_job(job_data):
                 job_data.get("source"),
                 job_data.get("date_posted"),
                 is_targeted_val,
+                ptype,
                 job_data["job_id"]
             ))
         conn.commit()
@@ -232,8 +267,8 @@ def add_job(job_data):
         INSERT INTO jobs (
             job_id, title, company, location, description, 
             experience, tech_stack, salary, apply_url, source, 
-            date_posted, date_found, status, notes, is_targeted
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', '', ?)
+            date_posted, date_found, status, notes, is_targeted, is_active, portal_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', '', ?, 1, ?)
         """
         execute_sql(cursor, query, (
             job_data["job_id"],
@@ -248,7 +283,8 @@ def add_job(job_data):
             job_data.get("source"),
             job_data.get("date_posted"),
             now_str,
-            is_targeted_val
+            is_targeted_val,
+            ptype
         ))
         conn.commit()
         conn.close()
@@ -265,6 +301,13 @@ def update_job_notes(job_id, notes):
     conn = get_db_connection()
     cursor = get_cursor(conn)
     execute_sql(cursor, "UPDATE jobs SET notes = ? WHERE job_id = ?", (notes, job_id))
+    conn.commit()
+    conn.close()
+
+def set_job_active_status(job_id, is_active):
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    execute_sql(cursor, "UPDATE jobs SET is_active = ? WHERE job_id = ?", (is_active, job_id))
     conn.commit()
     conn.close()
 

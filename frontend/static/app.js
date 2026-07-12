@@ -5,6 +5,7 @@ let activePanel = "dashboard";
 let activeJob = null;
 let isSyncing = false;
 let logInterval = null;
+let activeJobTab = "Portal";
 let parsedResumeData = {
     experience: 2,
     skills: [],
@@ -83,6 +84,10 @@ const elements = {
     uploadFileName: document.getElementById("uploadFileName"),
     triggerBulkUploadBtn: document.getElementById("triggerBulkUploadBtn"),
     saveSettingsBtn: document.getElementById("saveSettingsBtn"),
+    
+    // Jobs Sub-tabs
+    btnTabPortals: document.getElementById("btnTabPortals"),
+    btnTabCareers: document.getElementById("btnTabCareers"),
     
     // Resume Sync
     resumeDropZone: document.getElementById("resumeDropZone"),
@@ -248,6 +253,28 @@ function setupEventListeners() {
             handleResumeUpload(file);
         }
     });
+
+    // Jobs Sub-tabs handlers
+    if (elements.btnTabPortals) {
+        elements.btnTabPortals.addEventListener("click", () => {
+            activeJobTab = "Portal";
+            elements.btnTabPortals.classList.add("btn-primary");
+            elements.btnTabPortals.classList.remove("btn-secondary");
+            elements.btnTabCareers.classList.add("btn-secondary");
+            elements.btnTabCareers.classList.remove("btn-primary");
+            filterAndRenderJobs();
+        });
+    }
+    if (elements.btnTabCareers) {
+        elements.btnTabCareers.addEventListener("click", () => {
+            activeJobTab = "Career";
+            elements.btnTabCareers.classList.add("btn-primary");
+            elements.btnTabCareers.classList.remove("btn-secondary");
+            elements.btnTabPortals.classList.add("btn-secondary");
+            elements.btnTabPortals.classList.remove("btn-primary");
+            filterAndRenderJobs();
+        });
+    }
 
     // Resume Modal handlers
     elements.closeResumeModalBtn.addEventListener("click", closeResumeModal);
@@ -471,6 +498,18 @@ function matchesProfile(job) {
 function filterAndRenderJobs() {
     if (!elements.jobsSearchInput) return; // Prevent runs before initial DOM load
     
+    // Calculate tab counts dynamically
+    const profileMatchingJobs = jobsData.filter(matchesProfile).filter(job => (job.is_active === undefined || job.is_active === 1 || job.is_active === null));
+    const countPortals = profileMatchingJobs.filter(job => (job.portal_type || "Portal") === "Portal").length;
+    const countCareers = profileMatchingJobs.filter(job => (job.portal_type || "Portal") === "Career").length;
+    
+    if (elements.btnTabPortals) {
+        elements.btnTabPortals.innerText = `Job Portals (${countPortals})`;
+    }
+    if (elements.btnTabCareers) {
+        elements.btnTabCareers.innerText = `Company Careers (${countCareers})`;
+    }
+    
     const searchQuery = elements.jobsSearchInput.value.toLowerCase();
     const statusFilter = elements.filterStatus.value;
     const sourceFilter = elements.filterSource.value;
@@ -483,6 +522,13 @@ function filterAndRenderJobs() {
     const minSalConfig = elements.prefMinSalary && elements.prefMinSalary.value ? elements.prefMinSalary.value.toLowerCase().trim() : "";
     
     const filteredJobs = jobsData.filter(job => {
+        // Toggle tab view
+        const matchesTab = (job.portal_type || "Portal") === activeJobTab;
+        if (!matchesTab) return false;
+        
+        // Hide inactive/closed jobs unless looking for Closed status explicitly
+        const matchesActive = (job.is_active === undefined || job.is_active === 1 || job.is_active === null) || statusFilter === "Closed";
+        if (!matchesActive) return false;
         const matchesSearch = 
             (job.title && job.title.toLowerCase().includes(searchQuery)) ||
             (job.company && job.company.toLowerCase().includes(searchQuery)) ||
@@ -729,8 +775,8 @@ function openDrawer(job) {
         elements.drawerApplyBtn.style.display = "none";
     }
     
-    // Render Description HTML/Text
-    elements.drawerDescription.innerText = job.description || "No description available.";
+    // Render Description HTML/Text with highlights
+    elements.drawerDescription.innerHTML = formatAndHighlightDescription(job.description);
     
     // Display elements
     elements.drawerOverlay.classList.add("active");
@@ -1272,6 +1318,64 @@ async function applyResumeProfileSettings() {
         elements.applyResumeBtn.disabled = false;
         elements.applyResumeBtn.innerText = "Apply to Search Profile";
     }
+}
+
+// Format and Highlight Job Description drawer text
+function formatAndHighlightDescription(descText) {
+    if (!descText) return "No description available.";
+    
+    let html = descText;
+    const hasHtml = /<[a-z][\s\S]*>/i.test(descText);
+    
+    if (!hasHtml) {
+        // Plain text newline conversions
+        html = descText
+            .split(/\n{2,}/)
+            .map(p => `<p style="margin-bottom: 1rem;">${p.replace(/\n/g, "<br>")}</p>`)
+            .join("");
+    }
+    
+    // 1. Highlight technical stack keywords
+    if (configData && configData.tech_keywords) {
+        let skillsList = [];
+        try {
+            skillsList = typeof configData.tech_keywords === 'string' ? JSON.parse(configData.tech_keywords) : configData.tech_keywords;
+        } catch(e) {
+            skillsList = configData.tech_keywords;
+        }
+        
+        if (Array.isArray(skillsList)) {
+            skillsList.forEach(skill => {
+                if (!skill) return;
+                try {
+                    const escapedSkill = skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    let regex = new RegExp(`\\b(${escapedSkill})\\b`, 'gi');
+                    
+                    if (skill.includes("/") || skill.toLowerCase().includes("ci/cd")) {
+                        regex = new RegExp(`(${escapedSkill})`, 'gi');
+                    }
+                    
+                    html = html.replace(regex, (match) => {
+                        return `<mark style="background: rgba(var(--primary-color-rgb), 0.25); color: #fff; border-radius: 4px; padding: 2px 4px; font-weight: 600; border-bottom: 2px solid var(--primary-color);">${match}</mark>`;
+                    });
+                } catch (err) {
+                    console.error("Highlight error for skill:", skill, err);
+                }
+            });
+        }
+    }
+    
+    // 2. Highlight numerical experience mentions
+    try {
+        const expRegex = /\b(\d+\s*(?:\+|-|to)?\s*\d*\s*(?:years?|yrs?)(?:\s*(?:of)?\s*experience)?)\b/gi;
+        html = html.replace(expRegex, (match) => {
+            return `<mark style="background: rgba(230, 92, 0, 0.20); color: #ff8533; border-radius: 4px; padding: 2px 6px; font-weight: 600; border-bottom: 2px solid #ff8533;">${match}</mark>`;
+        });
+    } catch (err) {
+        console.error("Highlight error for experience regex:", err);
+    }
+    
+    return html;
 }
 
 // Log Polling & Console Box rendering

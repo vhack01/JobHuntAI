@@ -116,6 +116,44 @@ def fetch_linkedin_description(job_id):
         log(f"Error fetching description for LI job {job_id}: {e}")
     return None
 
+def get_clean_source(row, site, job_url):
+    source_name = site.capitalize()
+    if not job_url:
+        return source_name
+    url_lower = job_url.lower()
+    if "linkedin.com" in url_lower:
+        return "LinkedIn"
+    elif "ycombinator.com" in url_lower:
+        return "Y Combinator"
+    elif "instahyre.com" in url_lower or "instahire.com" in url_lower:
+        return "Instahyre"
+    elif "naukri.com" in url_lower:
+        return "Naukri"
+    elif "founderslist.com" in url_lower or "founders" in url_lower:
+        return "Founders"
+    elif "indeed.com" in url_lower:
+        return "Indeed"
+    elif "glassdoor.com" in url_lower:
+        return "Glassdoor"
+    elif "ziprecruiter.com" in url_lower:
+        return "ZipRecruiter"
+    return source_name
+
+def classify_portal_type(apply_url, source):
+    if not apply_url:
+        return "Portal"
+    url_lower = apply_url.lower()
+    source_lower = source.lower() if source else ""
+    if any(pk in source_lower for pk in ["linkedin", "ycombinator", "yc", "naukri", "instahyre", "instahire", "founders", "indeed", "ziprecruiter", "glassdoor", "google"]):
+        return "Portal"
+    portal_keywords = ["linkedin.com", "ycombinator.com", "instahyre.com", "naukri.com", "founderslist.com", "indeed.com", "ziprecruiter.com", "glassdoor.com", "google"]
+    if any(pk in url_lower for pk in portal_keywords):
+        return "Portal"
+    career_keywords = ["lever.co", "greenhouse.io", "ashbyhq.com", "myworkdayjobs.com", "careers.", "jobs.", "/careers", "/jobs"]
+    if any(ck in url_lower for ck in career_keywords):
+        return "Career"
+    return "Career"
+
 def scrape_query(keyword, location, company_name=None):
     new_jobs_count = 0
     total_scraped_count = 0
@@ -172,6 +210,8 @@ def scrape_query(keyword, location, company_name=None):
             tech_stack = extract_tech_stack(full_text)
             experience = extract_experience(full_text)
             salary = extract_salary(row, description)
+            clean_source = get_clean_source(row, site, job_url)
+            portal_type = classify_portal_type(job_url, clean_source)
             
             job_data = {
                 "job_id": raw_id,
@@ -183,9 +223,10 @@ def scrape_query(keyword, location, company_name=None):
                 "tech_stack": tech_stack,
                 "salary": salary,
                 "apply_url": job_url,
-                "source": site.capitalize(),
+                "source": clean_source,
                 "date_posted": date_posted,
-                "is_targeted": 1 if company_name else 0
+                "is_targeted": 1 if company_name else 0,
+                "portal_type": portal_type
             }
             
             is_new = db.add_job(job_data)
@@ -267,3 +308,69 @@ def run_company_search(company_name):
             
     log(f"Targeted single-company scan finished. Scraped: {total_scraped_count}, New added: {new_jobs_count}")
     return new_jobs_count, total_scraped_count
+
+def check_job_active(url):
+    import requests
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+        if response.status_code in [404, 410]:
+            return False
+            
+        final_url = response.url.lower()
+        if "linkedin.com/jobs/search" in final_url or "linkedin.com/jobs/view/expired" in final_url:
+            return False
+            
+        text = response.text.lower()
+        closed_keywords = [
+            "no longer accepting applications",
+            "job posting is no longer available",
+            "this job is closed",
+            "position has been filled",
+            "job is no longer active",
+            "posting has expired",
+            "no longer active",
+            "page not found"
+        ]
+        for kw in closed_keywords:
+            if kw in text:
+                return False
+                
+        return True
+    except Exception:
+        # Keep active if connection fails to prevent false negatives
+        return True
+
+def sync_active_status_job():
+    from backend import db
+    log("Starting daily active status check job...")
+    
+    # Get all active jobs (is_active = 1)
+    active_jobs = db.get_jobs(active_only=True)
+    log(f"Found {len(active_jobs)} active listings to verify...")
+    
+    closed_count = 0
+    checked_count = 0
+    
+    for job in active_jobs:
+        url = job.get("apply_url")
+        job_id = job.get("job_id")
+        
+        if not url:
+            continue
+            
+        checked_count += 1
+        is_active = check_job_active(url)
+        
+        if not is_active:
+            # Update status in DB
+            db.set_job_active_status(job_id, 0)
+            db.update_job_status(job_id, "Closed")
+            closed_count += 1
+            log(f"Job closed: '{job.get('title')}' at '{job.get('company')}'")
+            
+    log(f"Active status check completed. Checked {checked_count} jobs. Marked {closed_count} jobs as closed/inactive.")
+    return closed_count
+
