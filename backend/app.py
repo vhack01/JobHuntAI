@@ -419,6 +419,9 @@ async def parse_resume(file: UploadFile = File(...)):
         if not text.strip():
             raise HTTPException(status_code=400, detail="No readable text found in the uploaded file.")
             
+        # Save raw text to db config
+        db.set_config("resume_raw_text", text)
+            
         # Parse Experience level
         experience_years = 2 # Default fallback
         exp_patterns = [
@@ -523,6 +526,69 @@ async def apply_resume_profile(data: ResumeApplyModel):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-apply/generate-answers")
+def generate_application_answers(payload: dict = Body(...)):
+    try:
+        resume_text = db.get_config("resume_raw_text", "")
+        if not resume_text:
+            return {"status": "error", "message": "No synced resume text found. Please upload your resume in settings first."}
+            
+        api_key = db.get_config("gemini_api_key", "")
+        if not api_key:
+            return {"status": "error", "message": "Gemini API key is missing. Please configure it in settings."}
+            
+        questions = payload.get("questions", [])
+        if not questions:
+            return {"status": "success", "answers": {}}
+            
+        import requests
+        prompt = f"""
+You are an expert career assistant. You are helping an applicant auto-fill custom questions for a job application form.
+Below is the applicant's resume content:
+---
+{resume_text}
+---
+
+Company Name: {payload.get('company', 'the company')}
+Job Title: {payload.get('job_title', 'Software Engineer')}
+
+Here are the custom questions asked on the application form:
+{json.dumps(questions)}
+
+Generate concise, professional, and tailored answers (1-3 sentences each) for each question based on the applicant's resume. Do not invent details; represent their experience honestly.
+Return the output as a valid JSON object mapping each question to its corresponding generated answer. Format:
+{{
+  "Question text...": "Generated answer..."
+}}
+Return ONLY the raw JSON object. Do not include markdown code block formatting (such as ```json) or any other text.
+"""
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        headers = {"Content-Type": "application/json"}
+        req_body = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {
+                "responseMimeType": "application/json"
+            }
+        }
+        
+        res = requests.post(url, headers=headers, json=req_body, timeout=20)
+        if res.status_code != 200:
+            return {"status": "error", "message": f"Gemini API returned error: {res.text}"}
+            
+        data = res.json()
+        try:
+            text_response = data['candidates'][0]['content']['parts'][0]['text']
+            answers = json.loads(text_response.strip())
+            return {"status": "success", "answers": answers}
+        except Exception as parse_err:
+            logs.log(f"Raw Gemini response parsing failed: {parse_err}")
+            return {"status": "error", "message": f"Could not parse Gemini JSON response: {text_response}"}
+            
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 # Serving static frontend folder

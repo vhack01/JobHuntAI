@@ -11,6 +11,8 @@ let parsedResumeData = {
     skills: [],
     suggested_keywords: []
 };
+let filterResumeSkillsActive = false;
+let ycFilterResumeSkillsActive = false;
 
 // DOM Elements
 const elements = {
@@ -103,6 +105,9 @@ const elements = {
     btnBulkApplyYc: document.getElementById("btnBulkApplyYc"),
     selectAllMain: document.getElementById("selectAllMain"),
     selectAllYc: document.getElementById("selectAllYc"),
+    btnFilterResumeSkills: document.getElementById("btnFilterResumeSkills"),
+    btnYcFilterResumeSkills: document.getElementById("btnYcFilterResumeSkills"),
+    geminiApiKey: document.getElementById("geminiApiKey"),
     
     // Resume Sync
     resumeDropZone: document.getElementById("resumeDropZone"),
@@ -218,6 +223,39 @@ function setupEventListeners() {
     }
     if (elements.btnFetchYcJobs) {
         elements.btnFetchYcJobs.addEventListener("click", triggerYcScrape);
+    }
+    
+    // Match Resume Skills toggles
+    if (elements.btnFilterResumeSkills) {
+        elements.btnFilterResumeSkills.addEventListener("click", () => {
+            filterResumeSkillsActive = !filterResumeSkillsActive;
+            if (filterResumeSkillsActive) {
+                elements.btnFilterResumeSkills.style.background = "var(--primary-color)";
+                elements.btnFilterResumeSkills.style.color = "white";
+                elements.btnFilterResumeSkills.style.borderColor = "var(--primary-color)";
+            } else {
+                elements.btnFilterResumeSkills.style.background = "transparent";
+                elements.btnFilterResumeSkills.style.color = "var(--text-secondary)";
+                elements.btnFilterResumeSkills.style.borderColor = "var(--border-glass)";
+            }
+            filterAndRenderJobs();
+        });
+    }
+    
+    if (elements.btnYcFilterResumeSkills) {
+        elements.btnYcFilterResumeSkills.addEventListener("click", () => {
+            ycFilterResumeSkillsActive = !ycFilterResumeSkillsActive;
+            if (ycFilterResumeSkillsActive) {
+                elements.btnYcFilterResumeSkills.style.background = "var(--primary-color)";
+                elements.btnYcFilterResumeSkills.style.color = "white";
+                elements.btnYcFilterResumeSkills.style.borderColor = "var(--primary-color)";
+            } else {
+                elements.btnYcFilterResumeSkills.style.background = "transparent";
+                elements.btnYcFilterResumeSkills.style.color = "var(--text-secondary)";
+                elements.btnYcFilterResumeSkills.style.borderColor = "var(--border-glass)";
+            }
+            filterAndRenderYcJobs();
+        });
     }
     
     // Select All Checkbox bindings
@@ -606,6 +644,16 @@ function filterAndRenderJobs() {
             
         const matchesStatus = !statusFilter || job.status === statusFilter;
         const matchesSource = !sourceFilter || job.source === sourceFilter;
+        
+        // Match Resume Skills filter
+        const matchesResumeSkills = (() => {
+            if (!filterResumeSkillsActive) return true;
+            const resumeSkills = configData.tech_keywords ? JSON.parse(configData.tech_keywords) : [];
+            if (resumeSkills.length === 0) return true;
+            const jobTech = job.tech_stack ? job.tech_stack.toLowerCase() : "";
+            return resumeSkills.some(skill => jobTech.includes(skill.toLowerCase()));
+        })();
+        if (!matchesResumeSkills) return false;
         
         // Experience Filter logic
         const matchesExperience = (() => {
@@ -1181,6 +1229,9 @@ function renderSettings() {
     if (linkedinInput) linkedinInput.value = configData.profile_linkedin || "";
     if (portfolioInput) portfolioInput.value = configData.profile_portfolio || "";
     
+    const geminiKeyInput = document.getElementById("geminiApiKey");
+    if (geminiKeyInput) geminiKeyInput.value = configData.gemini_api_key || "";
+    
     updateBookmarkletLink();
 }
 
@@ -1248,6 +1299,7 @@ async function saveSettings() {
     const githubInput = document.getElementById("profileGithub");
     const linkedinInput = document.getElementById("profileLinkedin");
     const portfolioInput = document.getElementById("profilePortfolio");
+    const geminiKeyInput = document.getElementById("geminiApiKey");
 
     const payload = {
         search_keywords: configData.search_keywords || [],
@@ -1263,7 +1315,8 @@ async function saveSettings() {
         profile_phone: phoneInput ? phoneInput.value.trim() : "",
         profile_github: githubInput ? githubInput.value.trim() : "",
         profile_linkedin: linkedinInput ? linkedinInput.value.trim() : "",
-        profile_portfolio: portfolioInput ? portfolioInput.value.trim() : ""
+        profile_portfolio: portfolioInput ? portfolioInput.value.trim() : "",
+        gemini_api_key: geminiKeyInput ? geminiKeyInput.value.trim() : ""
     };
     
     try {
@@ -1943,6 +1996,7 @@ function updateBookmarkletLink() {
         portfolio: configData.profile_portfolio || ""
     };
     
+    // Bookmarklet source code
     const code = `javascript:(function(){
         const data = ${JSON.stringify(profile)};
         
@@ -1969,11 +2023,117 @@ function updateBookmarkletLink() {
         fillField(['input[name*="linkedin" i]', 'input[placeholder*="linkedin" i]'], data.linkedin);
         fillField(['input[name*="website" i]', 'input[name*="portfolio" i]', 'input[placeholder*="website" i]', 'input[placeholder*="portfolio" i]'], data.portfolio);
         
-        const notification = document.createElement('div');
-        notification.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#10B981;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
-        notification.innerText = '✨ Auto-filled Application Form! ✨';
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 2500);
+        const questions = [];
+        const questionElements = [];
+        
+        document.querySelectorAll('.application-question').forEach(qBlock => {
+            const label = qBlock.querySelector('.application-label');
+            const input = qBlock.querySelector('input[type="text"], textarea');
+            if (label && input) {
+                questions.push(label.innerText.trim());
+                questionElements.push({ label: label.innerText.trim(), input: input });
+            }
+        });
+        
+        document.querySelectorAll('.field').forEach(qBlock => {
+            const label = qBlock.querySelector('label');
+            const input = qBlock.querySelector('input[type="text"], textarea');
+            if (label && input) {
+                const name = input.name || "";
+                if (!name.includes('name') && !name.includes('email') && !name.includes('phone') && !name.includes('resume') && !name.includes('github') && !name.includes('linkedin') && !name.includes('website')) {
+                    questions.push(label.innerText.replace('*', '').trim());
+                    questionElements.push({ label: label.innerText.replace('*', '').trim(), input: input });
+                }
+            }
+        });
+        
+        if (questions.length === 0) {
+            showSuccessNotification('Auto-filled standard profile details!');
+            return;
+        }
+        
+        let jobTitle = document.title;
+        let company = '';
+        const leverTitle = document.querySelector('.posting-header h2');
+        if (leverTitle) jobTitle = leverTitle.innerText;
+        
+        const greenhouseTitle = document.querySelector('.app-title');
+        if (greenhouseTitle) jobTitle = greenhouseTitle.innerText;
+        
+        const greenhouseCompany = document.querySelector('.company-name');
+        if (greenhouseCompany) company = greenhouseCompany.innerText.replace('at ', '');
+        
+        showLoadingNotification('AI is tailing answers from your resume...');
+        
+        fetch('https://jobcrawlers.vercel.app/api/auto-apply/generate-answers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                company: company,
+                job_title: jobTitle,
+                questions: questions
+            })
+        })
+        .then(res => res.json())
+        .then(resData => {
+            removeNotification();
+            if (resData.status === 'success' && resData.answers) {
+                let filledCount = 0;
+                questionElements.forEach(item => {
+                    for (let qText in resData.answers) {
+                        if (item.label.toLowerCase().includes(qText.toLowerCase()) || qText.toLowerCase().includes(item.label.toLowerCase())) {
+                            item.input.value = resData.answers[qText];
+                            item.input.dispatchEvent(new Event('input', { bubbles: true }));
+                            item.input.dispatchEvent(new Event('change', { bubbles: true }));
+                            if (item.input._valueTracker) item.input._valueTracker.setValue(resData.answers[qText]);
+                            filledCount++;
+                            break;
+                        }
+                    }
+                });
+                showSuccessNotification('✨ Auto-filled profile and generated answers for ' + filledCount + ' custom questions! ✨');
+            } else {
+                showErrorNotification('AI generation failed: ' + (resData.message || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            removeNotification();
+            showErrorNotification('Connection to Job Hunt server failed.');
+        });
+        
+        function showLoadingNotification(msg) {
+            removeNotification();
+            const div = document.createElement('div');
+            div.id = 'apply-helper-notif';
+            div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#3B82F6;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
+            div.innerText = msg;
+            document.body.appendChild(div);
+        }
+        
+        function showSuccessNotification(msg) {
+            removeNotification();
+            const div = document.createElement('div');
+            div.id = 'apply-helper-notif';
+            div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#10B981;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
+            div.innerText = msg;
+            document.body.appendChild(div);
+            setTimeout(removeNotification, 3500);
+        }
+        
+        function showErrorNotification(msg) {
+            removeNotification();
+            const div = document.createElement('div');
+            div.id = 'apply-helper-notif';
+            div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#EF4444;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
+            div.innerText = msg;
+            document.body.appendChild(div);
+            setTimeout(removeNotification, 4000);
+        }
+        
+        function removeNotification() {
+            const el = document.getElementById('apply-helper-notif');
+            if (el) el.remove();
+        }
     })();`;
     
     linkEl.href = code.replace(/\\s+/g, " ");
