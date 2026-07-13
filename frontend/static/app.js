@@ -92,6 +92,10 @@ const elements = {
     // YC Jobs Tracker
     btnFetchYcJobs: document.getElementById("btnFetchYcJobs"),
     ycSearchInput: document.getElementById("ycSearchInput"),
+    ycFilterStatus: document.getElementById("ycFilterStatus"),
+    ycFilterExperience: document.getElementById("ycFilterExperience"),
+    ycFilterSalary: document.getElementById("ycFilterSalary"),
+    ycFilterLocation: document.getElementById("ycFilterLocation"),
     ycJobsTable: document.getElementById("ycJobsTable"),
     ycJobsTableBody: document.getElementById("ycJobsTableBody"),
     ycEmptyState: document.getElementById("ycEmptyState"),
@@ -195,6 +199,18 @@ function setupEventListeners() {
     // YC Jobs Tracker events
     if (elements.ycSearchInput) {
         elements.ycSearchInput.addEventListener("input", filterAndRenderYcJobs);
+    }
+    if (elements.ycFilterStatus) {
+        elements.ycFilterStatus.addEventListener("change", filterAndRenderYcJobs);
+    }
+    if (elements.ycFilterExperience) {
+        elements.ycFilterExperience.addEventListener("change", filterAndRenderYcJobs);
+    }
+    if (elements.ycFilterSalary) {
+        elements.ycFilterSalary.addEventListener("change", filterAndRenderYcJobs);
+    }
+    if (elements.ycFilterLocation) {
+        elements.ycFilterLocation.addEventListener("change", filterAndRenderYcJobs);
     }
     if (elements.btnFetchYcJobs) {
         elements.btnFetchYcJobs.addEventListener("click", triggerYcScrape);
@@ -1403,17 +1419,84 @@ function filterAndRenderYcJobs() {
     if (!elements.ycSearchInput) return;
     
     const searchQuery = elements.ycSearchInput.value.toLowerCase();
+    const statusFilter = elements.ycFilterStatus.value;
+    const maxExpLimit = elements.ycFilterExperience.value !== "" ? parseInt(elements.ycFilterExperience.value, 10) : null;
+    const salFilter = elements.ycFilterSalary.value;
+    const locFilter = elements.ycFilterLocation.value;
+    
+    const showUnspecified = elements.prefShowUnspecified ? elements.prefShowUnspecified.checked : true;
+    const defaultMaxExp = (maxExpLimit === null && elements.prefMaxExperience && elements.prefMaxExperience.value !== "") ? parseInt(elements.prefMaxExperience.value, 10) : null;
     
     const filteredYcJobs = jobsData.filter(job => {
         if (job.portal_type !== "YC") return false;
         
+        // Status Filter
+        if (statusFilter && job.status !== statusFilter) return false;
+        
+        // Search query filter
         const matchesSearch = 
             (job.title && job.title.toLowerCase().includes(searchQuery)) ||
             (job.company && job.company.toLowerCase().includes(searchQuery)) ||
             (job.tech_stack && job.tech_stack.toLowerCase().includes(searchQuery)) ||
             (job.location && job.location.toLowerCase().includes(searchQuery));
+        if (!matchesSearch) return false;
+        
+        // Experience Filter
+        const matchesExperience = (() => {
+            if (!job.experience || job.experience === "Not specified") {
+                return showUnspecified;
+            }
+            const expVal = getExperienceNumber(job.experience);
+            if (expVal === null) return showUnspecified;
             
-        return matchesSearch;
+            if (maxExpLimit !== null) {
+                return expVal <= maxExpLimit;
+            } else if (defaultMaxExp !== null) {
+                return expVal <= defaultMaxExp;
+            }
+            return true;
+        })();
+        if (!matchesExperience) return false;
+        
+        // Salary Filter
+        const matchesSalary = (() => {
+            if (!salFilter) return true;
+            if (salFilter === "specified") {
+                return job.salary && job.salary !== "Not specified";
+            }
+            const minLimit = parseInt(salFilter, 10);
+            const salObj = getSalaryNumericValue(job.salary);
+            if (salObj === null) return false;
+            
+            if (salObj.isUsd) {
+                return salObj.value >= minLimit;
+            } else {
+                const usdEquivalent = salObj.value * 1.2;
+                return usdEquivalent >= minLimit;
+            }
+        })();
+        if (!matchesSalary) return false;
+        
+        // Location Filter
+        const matchesLocation = (() => {
+            if (!locFilter) return true;
+            if (locFilter === "remote_only") {
+                return job.location && /remote/i.test(job.location);
+            }
+            if (locFilter === "sf_only") {
+                return job.location && /(sf|san francisco|oakland|berkeley|bay area)/i.test(job.location);
+            }
+            if (locFilter === "nyc_only") {
+                return job.location && /(nyc|new york|brooklyn)/i.test(job.location);
+            }
+            if (locFilter === "india_only") {
+                return job.location && /(india|in|bengaluru|bangalore|hyderabad|mumbai|pune|delhi|noida)/i.test(job.location);
+            }
+            return true;
+        })();
+        if (!matchesLocation) return false;
+        
+        return true;
     });
     
     elements.ycJobsTableBody.innerHTML = "";
@@ -1439,7 +1522,18 @@ function createYcJobRow(job) {
     
     const tdTitle = document.createElement("td");
     tdTitle.style.fontWeight = "600";
-    tdTitle.innerText = job.title || "Untitled Position";
+    
+    const link = document.createElement("a");
+    link.href = job.apply_url || "https://www.workatastartup.com/companies";
+    link.target = "_blank";
+    link.innerText = job.title || "Untitled Position";
+    link.style.color = "var(--primary-color)";
+    link.style.textDecoration = "none";
+    link.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+    
+    tdTitle.appendChild(link);
     tr.appendChild(tdTitle);
     
     const tdCompany = document.createElement("td");

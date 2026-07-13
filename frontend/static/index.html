@@ -349,7 +349,40 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input type="text" id="ycSearchInput" placeholder="Search YC companies, roles, or tech stack...">
                     </div>
-                    <div class="filters-group" style="display: flex; align-items: center; gap: 0.75rem; width: auto; flex-grow: 0;">
+                    <div class="filters-group">
+                        <select id="ycFilterStatus" class="filter-select">
+                            <option value="">All Statuses</option>
+                            <option value="New">New</option>
+                            <option value="Interested">Interested</option>
+                            <option value="Applied">Applied</option>
+                            <option value="Interviewing">Interviewing</option>
+                            <option value="Rejected">Rejected</option>
+                            <option value="Not Interested">Not Interested</option>
+                        </select>
+                        <select id="ycFilterExperience" class="filter-select">
+                            <option value="">All Experience</option>
+                            <option value="0">Internship/Entry</option>
+                            <option value="1">≤ 1 Year</option>
+                            <option value="2">≤ 2 Years</option>
+                            <option value="3">≤ 3 Years</option>
+                            <option value="5">≤ 5 Years</option>
+                        </select>
+                        <select id="ycFilterSalary" class="filter-select">
+                            <option value="">All Salaries</option>
+                            <option value="specified">Salary Specified</option>
+                            <option value="50">≥ $50k</option>
+                            <option value="80">≥ $80k</option>
+                            <option value="120">≥ $120k</option>
+                            <option value="150">≥ $150k</option>
+                            <option value="250">≥ $250k</option>
+                        </select>
+                        <select id="ycFilterLocation" class="filter-select">
+                            <option value="">All Locations</option>
+                            <option value="remote_only">Remote Only</option>
+                            <option value="sf_only">SF Bay Area</option>
+                            <option value="nyc_only">New York City</option>
+                            <option value="india_only">India Only</option>
+                        </select>
                         <button type="button" class="btn btn-primary" id="btnFetchYcJobs" style="height: 38px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; padding: 0 1.25rem; display: flex; align-items: center; gap: 0.5rem; transition: all var(--transition-fast);">
                             <svg class="yc-spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                             Fetch YC Jobs
