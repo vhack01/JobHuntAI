@@ -37,6 +37,10 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                 Jobs Board
             </button>
+            <button class="nav-btn" data-target="ycjobs">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                YC Jobs Tracker
+            </button>
             <button class="nav-btn" data-target="settings">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.5 1z"></path></svg>
                 Settings
@@ -333,6 +337,60 @@
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                             <h3>No job postings match your filters.</h3>
                             <p>Try clearing filters, updating search keywords, or clicking "Search Jobs Now".</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- YC JOBS PANEL -->
+            <section id="ycjobsPanel" class="panel">
+                <div class="jobs-filter-bar">
+                    <div class="search-input-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="ycSearchInput" placeholder="Search YC companies, roles, or tech stack...">
+                    </div>
+                    <div class="filters-group" style="display: flex; align-items: center; gap: 0.75rem; width: auto; flex-grow: 0;">
+                        <button type="button" class="btn btn-primary" id="btnFetchYcJobs" style="height: 38px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; padding: 0 1.25rem; display: flex; align-items: center; gap: 0.5rem; transition: all var(--transition-fast);">
+                            <svg class="yc-spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                            Fetch YC Jobs
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.25rem; background: rgba(var(--primary-color-rgb), 0.05); border: 1px dashed rgba(var(--primary-color-rgb), 0.25);">
+                    <div class="card-body" style="padding: 1rem; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; color: var(--text-secondary);">
+                            <span style="font-size: 1.25rem;">ℹ️</span>
+                            <span>YC Work at a Startup listings are fetched directly from YC's directory and matched against your resume settings.</span>
+                        </div>
+                        <a href="https://www.workatastartup.com/companies?demographic=any&hasEquity=any&hasSalary=any&industry=any&interviewProcess=any&jobType=fulltime&layout=list-compact&sortBy=created_desc&tab=any&usVisaNotRequired=any" target="_blank" class="btn btn-sm btn-secondary" style="height: 30px; font-size: 0.75rem; font-weight: 500; border-radius: 6px; display: flex; align-items: center; gap: 0.25rem; text-decoration: none;">
+                            Open YC Board ↗
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card yc-list-card">
+                    <div class="card-body table-responsive scrollable-table-container">
+                        <table class="jobs-table" id="ycJobsTable">
+                            <thead>
+                                <tr>
+                                    <th>Job Title</th>
+                                    <th>YC Startup</th>
+                                    <th>Location</th>
+                                    <th>Tech Stack</th>
+                                    <th>Experience</th>
+                                    <th>Salary</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ycJobsTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                        <div class="empty-state" id="ycEmptyState" style="display: none;">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            <h3>No matching YC jobs found.</h3>
+                            <p>Click "Fetch YC Jobs" to scrape the latest matching listings from Y Combinator.</p>
                         </div>
                     </div>
                 </div>

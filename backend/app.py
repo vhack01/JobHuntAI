@@ -10,7 +10,7 @@ import pandas as pd
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-from backend import db, scraper, scheduler, logs
+from backend import db, scraper, scheduler, logs, yc_scraper
 
 app = FastAPI(title="Job Tracker & Scraper API")
 
@@ -120,6 +120,20 @@ def trigger_scrape_careers(background_tasks: BackgroundTasks):
             background_tasks.add_task(career_scraper.scrape_all_careers)
             logs.log("Manual targeted company careers scrape triggered by user.")
             return {"status": "started", "message": "Company careers scrape task initiated in background."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/jobs/scrape-yc")
+def trigger_scrape_yc(background_tasks: BackgroundTasks):
+    try:
+        if os.environ.get("VERCEL"):
+            logs.log("Vercel environment detected. Executing manual YC startup jobs scrape synchronously...")
+            yc_scraper.scrape_yc_startup_jobs()
+            return {"status": "success", "message": "YC startup jobs scrape completed synchronously."}
+        else:
+            background_tasks.add_task(yc_scraper.scrape_yc_startup_jobs)
+            logs.log("Manual YC startup jobs scrape triggered by user.")
+            return {"status": "started", "message": "YC jobs scrape task initiated in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

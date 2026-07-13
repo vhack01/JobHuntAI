@@ -89,6 +89,13 @@ const elements = {
     btnTabPortals: document.getElementById("btnTabPortals"),
     btnTabCareers: document.getElementById("btnTabCareers"),
     
+    // YC Jobs Tracker
+    btnFetchYcJobs: document.getElementById("btnFetchYcJobs"),
+    ycSearchInput: document.getElementById("ycSearchInput"),
+    ycJobsTable: document.getElementById("ycJobsTable"),
+    ycJobsTableBody: document.getElementById("ycJobsTableBody"),
+    ycEmptyState: document.getElementById("ycEmptyState"),
+    
     // Resume Sync
     resumeDropZone: document.getElementById("resumeDropZone"),
     resumeFileInput: document.getElementById("resumeFileInput"),
@@ -184,6 +191,14 @@ function setupEventListeners() {
     
     // Filters Event
     elements.jobsSearchInput.addEventListener("input", filterAndRenderJobs);
+    
+    // YC Jobs Tracker events
+    if (elements.ycSearchInput) {
+        elements.ycSearchInput.addEventListener("input", filterAndRenderYcJobs);
+    }
+    if (elements.btnFetchYcJobs) {
+        elements.btnFetchYcJobs.addEventListener("click", triggerYcScrape);
+    }
     elements.filterStatus.addEventListener("change", filterAndRenderJobs);
     elements.filterExperience.addEventListener("change", filterAndRenderJobs);
     elements.filterSalary.addEventListener("change", filterAndRenderJobs);
@@ -317,12 +332,17 @@ function switchTab(tabId) {
     const headers = {
         dashboard: { title: "Dashboard", sub: "Overview of job listings and matching analytics" },
         jobs: { title: "Jobs Board", sub: "Search, filter, and track discovered job postings" },
+        ycjobs: { title: "YC Jobs Tracker", sub: "Discovered and matched jobs from Y Combinator's directory" },
         settings: { title: "Settings", sub: "Configure keywords, locations, and automated schedules" },
         logs: { title: "Console Logs", sub: "Real-time scraper activities and server logs" }
     };
     
     elements.viewTitle.innerText = headers[tabId].title;
     elements.viewSub.innerText = headers[tabId].sub;
+    
+    if (tabId === "ycjobs") {
+        filterAndRenderYcJobs();
+    }
 }
 
 // Fetch Configurations
@@ -1376,6 +1396,139 @@ function formatAndHighlightDescription(descText) {
     }
     
     return html;
+}
+
+// YC Jobs Tracker filtering and rendering
+function filterAndRenderYcJobs() {
+    if (!elements.ycSearchInput) return;
+    
+    const searchQuery = elements.ycSearchInput.value.toLowerCase();
+    
+    const filteredYcJobs = jobsData.filter(job => {
+        if (job.portal_type !== "YC") return false;
+        
+        const matchesSearch = 
+            (job.title && job.title.toLowerCase().includes(searchQuery)) ||
+            (job.company && job.company.toLowerCase().includes(searchQuery)) ||
+            (job.tech_stack && job.tech_stack.toLowerCase().includes(searchQuery)) ||
+            (job.location && job.location.toLowerCase().includes(searchQuery));
+            
+        return matchesSearch;
+    });
+    
+    elements.ycJobsTableBody.innerHTML = "";
+    
+    if (filteredYcJobs.length === 0) {
+        elements.ycEmptyState.style.display = "flex";
+        elements.ycJobsTable.style.display = "none";
+    } else {
+        elements.ycEmptyState.style.display = "none";
+        elements.ycJobsTable.style.display = "table";
+        
+        filteredYcJobs.forEach(job => {
+            const row = createYcJobRow(job);
+            elements.ycJobsTableBody.appendChild(row);
+        });
+    }
+}
+
+function createYcJobRow(job) {
+    const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => openJobDrawer(job));
+    
+    const tdTitle = document.createElement("td");
+    tdTitle.style.fontWeight = "600";
+    tdTitle.innerText = job.title || "Untitled Position";
+    tr.appendChild(tdTitle);
+    
+    const tdCompany = document.createElement("td");
+    tdCompany.innerText = job.company || "Unknown Company";
+    tr.appendChild(tdCompany);
+    
+    const tdLocation = document.createElement("td");
+    tdLocation.innerText = job.location || "Remote / USA";
+    tr.appendChild(tdLocation);
+    
+    const tdTech = document.createElement("td");
+    tdTech.innerHTML = "";
+    if (job.tech_stack) {
+        job.tech_stack.split(", ").slice(0, 4).forEach(tech => {
+            const span = document.createElement("span");
+            span.className = "tech-tag";
+            span.innerText = tech;
+            tdTech.appendChild(span);
+        });
+    } else {
+        tdTech.innerHTML = `<span style="color: var(--text-muted); font-size: 0.8rem;">None specified</span>`;
+    }
+    tr.appendChild(tdTech);
+    
+    const tdExp = document.createElement("td");
+    tdExp.innerText = job.experience || "Not specified";
+    tr.appendChild(tdExp);
+    
+    const tdSalary = document.createElement("td");
+    tdSalary.innerText = job.salary || "Not specified";
+    tr.appendChild(tdSalary);
+    
+    const tdStatus = document.createElement("td");
+    const statusVal = job.status || "New";
+    let statusClass = "status-new";
+    if (statusVal === "Interested") statusClass = "status-interested";
+    if (statusVal === "Applied") statusClass = "status-applied";
+    if (statusVal === "Interviewing") statusClass = "status-interviewing";
+    if (statusVal === "Rejected") statusClass = "status-rejected";
+    if (statusVal === "Not Interested") statusClass = "status-not-interested";
+    
+    tdStatus.innerHTML = `<span class="badge-status ${statusClass}">${statusVal}</span>`;
+    tr.appendChild(tdStatus);
+    
+    return tr;
+}
+
+async function triggerYcScrape() {
+    if (isSyncing) return;
+    
+    isSyncing = true;
+    elements.btnFetchYcJobs.disabled = true;
+    const spinIcon = elements.btnFetchYcJobs.querySelector(".yc-spin-icon");
+    if (spinIcon) spinIcon.classList.add("spinning");
+    
+    showToast("Scraping Y Combinator Work at a Startup jobs...", "info");
+    switchTab("logs");
+    
+    try {
+        const response = await fetch("/api/jobs/scrape-yc", { method: "POST" });
+        const data = await response.json();
+        
+        let pollCount = 0;
+        const ycCheckInterval = setInterval(async () => {
+            pollCount++;
+            const logRes = await fetch("/api/logs");
+            const logData = await logRes.json();
+            renderLogs(logData.logs);
+            
+            const lastLog = logData.logs[logData.logs.length - 1] || "";
+            if (lastLog.includes("YC scrape completed") || pollCount > 60) {
+                clearInterval(ycCheckInterval);
+                isSyncing = false;
+                elements.btnFetchYcJobs.disabled = false;
+                if (spinIcon) spinIcon.classList.remove("spinning");
+                
+                showToast("Y Combinator jobs scraping complete!", "success");
+                await fetchJobs();
+                switchTab("ycjobs");
+            }
+        }, 1500);
+        
+    } catch (err) {
+        console.error("YC Scrape error:", err);
+        showToast("Failed to complete YC scraping.", "error");
+        isSyncing = false;
+        elements.btnFetchYcJobs.disabled = false;
+        if (spinIcon) spinIcon.classList.remove("spinning");
+    }
 }
 
 // Log Polling & Console Box rendering

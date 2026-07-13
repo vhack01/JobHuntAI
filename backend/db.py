@@ -30,7 +30,20 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 def get_db_connection():
     if DATABASE_URL:
-        return psycopg2.connect(DATABASE_URL)
+        import urllib.parse
+        result = urllib.parse.urlparse(DATABASE_URL)
+        username = result.username
+        password = urllib.parse.unquote(result.password) if result.password else None
+        database = result.path[1:] if result.path else None
+        hostname = result.hostname
+        port = result.port
+        return psycopg2.connect(
+            database=database,
+            user=username,
+            password=password,
+            host=hostname,
+            port=port
+        )
     else:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
