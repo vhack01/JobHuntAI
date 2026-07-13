@@ -303,21 +303,23 @@
                             <option value="Google">Google Jobs</option>
                         </select>
                     </div>
-                </div>
-
-                <div class="card jobs-list-card">
-                    <div class="card-header" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-glass); display: flex; gap: 0.5rem; background: rgba(0, 0, 0, 0.15);">
+                       <div class="card jobs-list-card">
+                    <div class="card-header" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-glass); display: flex; gap: 0.5rem; background: rgba(0, 0, 0, 0.15); align-items: center;">
                         <button type="button" class="btn btn-sm btn-primary" id="btnTabPortals" style="height: 32px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 1.25rem; transition: all var(--transition-fast);">
                             Job Portals (0)
                         </button>
                         <button type="button" class="btn btn-sm btn-secondary" id="btnTabCareers" style="height: 32px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 1.25rem; transition: all var(--transition-fast);">
                             Company Careers (0)
                         </button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btnBulkApplyMain" style="display: none; height: 32px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 1.25rem; transition: all var(--transition-fast); margin-left: auto; background: var(--primary-color); color: white; border: none; align-items: center; gap: 0.35rem;">
+                            Bulk Apply Selected (0) 🚀
+                        </button>
                     </div>
                     <div class="card-body table-responsive scrollable-table-container">
                         <table class="jobs-table" id="mainJobsTable">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllMain" style="cursor: pointer; width: 16px; height: 16px;"></th>
                                     <th>Job Title</th>
                                     <th>Company</th>
                                     <th>Location</th>
@@ -403,10 +405,17 @@
                 </div>
 
                 <div class="card yc-list-card">
+                    <div class="card-header" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-glass); display: flex; gap: 0.5rem; background: rgba(0, 0, 0, 0.15); align-items: center;">
+                        <h4 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">Matched YC Startups</h4>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btnBulkApplyYc" style="display: none; height: 32px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 1.25rem; transition: all var(--transition-fast); margin-left: auto; background: #FF4A00; color: white; border: none; align-items: center; gap: 0.35rem;">
+                            Bulk Apply Selected (0) 🚀
+                        </button>
+                    </div>
                     <div class="card-body table-responsive scrollable-table-container">
                         <table class="jobs-table" id="ycJobsTable">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllYc" style="cursor: pointer; width: 16px; height: 16px;"></th>
                                     <th>Job Title</th>
                                     <th>YC Startup</th>
                                     <th>Location</th>
@@ -547,6 +556,54 @@
                                     <button type="button" class="btn btn-secondary btn-sm" id="chooseResumeBtn" style="width: 100%;">Choose File</button>
                                     <div id="resumeFileNameDisplay" style="margin-top: 0.75rem; font-size: 0.8rem; font-weight: 500; display: none; color: var(--success-color);"></div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Auto-Apply Profile Card -->
+                        <div class="card settings-card">
+                            <div class="card-header">
+                                <h3>Auto-Apply Profile Setup</h3>
+                                <p>Set up standard values for the Form Auto-Fill Bookmarklet.</p>
+                            </div>
+                            <div class="card-body">
+                                <form id="autoApplyProfileForm" class="settings-form">
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label for="profileFullName" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">Full Name</label>
+                                        <input type="text" id="profileFullName" placeholder="e.g. John Doe" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label for="profileEmail" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">Email Address</label>
+                                        <input type="email" id="profileEmail" placeholder="e.g. john.doe@gmail.com" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label for="profilePhone" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">Phone Number</label>
+                                        <input type="text" id="profilePhone" placeholder="e.g. +1 (555) 019-2834" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                    </div>
+                                    <div class="form-row" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                                        <div class="form-group col" style="flex: 1;">
+                                            <label for="profileGithub" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">GitHub URL</label>
+                                            <input type="url" id="profileGithub" placeholder="https://github.com/username" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                        </div>
+                                        <div class="form-group col" style="flex: 1;">
+                                            <label for="profileLinkedin" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">LinkedIn URL</label>
+                                            <input type="url" id="profileLinkedin" placeholder="https://linkedin.com/in/username" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                                        <label for="profilePortfolio" style="display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600;">Portfolio Website</label>
+                                        <input type="url" id="profilePortfolio" placeholder="https://yourportfolio.com" class="form-control" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-glass); padding: 0 0.75rem; font-size: 0.88rem; background: rgba(255, 255, 255, 0.05); color: var(--text-primary);">
+                                    </div>
+                                    
+                                    <div style="padding: 1rem; background: rgba(var(--primary-color-rgb), 0.07); border: 1px dashed rgba(var(--primary-color-rgb), 0.3); border-radius: 10px; display: flex; flex-direction: column; gap: 0.5rem;">
+                                        <h5 style="margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--primary-color);">🚀 One-Click Form Auto-Filler Bookmarklet</h5>
+                                        <p style="margin: 0; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45;">
+                                            Drag the button below to your bookmarks bar. Open any job application (Lever, Greenhouse, YC, etc.) and click it to auto-fill the forms instantly!
+                                        </p>
+                                        <a href="#" id="bookmarkletLink" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; font-weight: 600; font-size: 0.82rem; background: var(--primary-color); color: white; border: none; height: 32px; border-radius: 6px; cursor: grab; text-decoration: none; margin-top: 0.25rem;" onclick="event.preventDefault(); alert('Drag this button up to your browser\'s Bookmarks Bar to install it!');">
+                                            📝 Drag Me to Bookmarks Bar
+                                        </a>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>

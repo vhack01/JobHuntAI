@@ -99,6 +99,10 @@ const elements = {
     ycJobsTable: document.getElementById("ycJobsTable"),
     ycJobsTableBody: document.getElementById("ycJobsTableBody"),
     ycEmptyState: document.getElementById("ycEmptyState"),
+    btnBulkApplyMain: document.getElementById("btnBulkApplyMain"),
+    btnBulkApplyYc: document.getElementById("btnBulkApplyYc"),
+    selectAllMain: document.getElementById("selectAllMain"),
+    selectAllYc: document.getElementById("selectAllYc"),
     
     // Resume Sync
     resumeDropZone: document.getElementById("resumeDropZone"),
@@ -214,6 +218,35 @@ function setupEventListeners() {
     }
     if (elements.btnFetchYcJobs) {
         elements.btnFetchYcJobs.addEventListener("click", triggerYcScrape);
+    }
+    
+    // Select All Checkbox bindings
+    if (elements.selectAllMain) {
+        elements.selectAllMain.addEventListener("change", (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll(".main-job-select").forEach(chk => {
+                chk.checked = checked;
+            });
+            updateBulkApplyButtonVisibility();
+        });
+    }
+    
+    if (elements.selectAllYc) {
+        elements.selectAllYc.addEventListener("change", (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll(".yc-job-select").forEach(chk => {
+                chk.checked = checked;
+            });
+            updateBulkApplyButtonVisibility();
+        });
+    }
+    
+    // Bulk Apply actions
+    if (elements.btnBulkApplyMain) {
+        elements.btnBulkApplyMain.addEventListener("click", () => triggerBulkApply("main"));
+    }
+    if (elements.btnBulkApplyYc) {
+        elements.btnBulkApplyYc.addEventListener("click", () => triggerBulkApply("yc"));
     }
     elements.filterStatus.addEventListener("change", filterAndRenderJobs);
     elements.filterExperience.addEventListener("change", filterAndRenderJobs);
@@ -685,6 +718,24 @@ function filterAndRenderJobs() {
 // Helper: Create Row Element
 function createJobRow(job) {
     const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    
+    // Checkbox column
+    const tdCheck = document.createElement("td");
+    tdCheck.style.textAlign = "center";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "main-job-select";
+    chk.value = job.job_id;
+    chk.style.cursor = "pointer";
+    chk.style.width = "16px";
+    chk.style.height = "16px";
+    chk.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateBulkApplyButtonVisibility();
+    });
+    tdCheck.appendChild(chk);
+    tr.appendChild(tdCheck);
     
     // Job Title
     const tdTitle = document.createElement("td");
@@ -1103,6 +1154,23 @@ function renderSettings() {
     if (elements.prefMinSalary) {
         elements.prefMinSalary.value = configData.filter_min_salary !== undefined ? configData.filter_min_salary : "";
     }
+    
+    // Auto-Apply Profile fields
+    const fullNameInput = document.getElementById("profileFullName");
+    const emailInput = document.getElementById("profileEmail");
+    const phoneInput = document.getElementById("profilePhone");
+    const githubInput = document.getElementById("profileGithub");
+    const linkedinInput = document.getElementById("profileLinkedin");
+    const portfolioInput = document.getElementById("profilePortfolio");
+    
+    if (fullNameInput) fullNameInput.value = configData.profile_fullname || "";
+    if (emailInput) emailInput.value = configData.profile_email || "";
+    if (phoneInput) phoneInput.value = configData.profile_phone || "";
+    if (githubInput) githubInput.value = configData.profile_github || "";
+    if (linkedinInput) linkedinInput.value = configData.profile_linkedin || "";
+    if (portfolioInput) portfolioInput.value = configData.profile_portfolio || "";
+    
+    updateBookmarkletLink();
 }
 
 function createTagElement(text, index, type) {
@@ -1163,6 +1231,13 @@ async function saveSettings() {
     const showUnspecified = (elements.prefShowUnspecified && elements.prefShowUnspecified.checked) ? "true" : "false";
     const minSal = elements.prefMinSalary ? elements.prefMinSalary.value : "";
     
+    const fullNameInput = document.getElementById("profileFullName");
+    const emailInput = document.getElementById("profileEmail");
+    const phoneInput = document.getElementById("profilePhone");
+    const githubInput = document.getElementById("profileGithub");
+    const linkedinInput = document.getElementById("profileLinkedin");
+    const portfolioInput = document.getElementById("profilePortfolio");
+
     const payload = {
         search_keywords: configData.search_keywords || [],
         search_locations: configData.search_locations || [],
@@ -1171,7 +1246,13 @@ async function saveSettings() {
         schedule_evening: evening,
         filter_max_experience: maxExp,
         filter_show_unspecified_exp: showUnspecified,
-        filter_min_salary: minSal
+        filter_min_salary: minSal,
+        profile_fullname: fullNameInput ? fullNameInput.value.trim() : "",
+        profile_email: emailInput ? emailInput.value.trim() : "",
+        profile_phone: phoneInput ? phoneInput.value.trim() : "",
+        profile_github: githubInput ? githubInput.value.trim() : "",
+        profile_linkedin: linkedinInput ? linkedinInput.value.trim() : "",
+        profile_portfolio: portfolioInput ? portfolioInput.value.trim() : ""
     };
     
     try {
@@ -1518,22 +1599,28 @@ function filterAndRenderYcJobs() {
 function createYcJobRow(job) {
     const tr = document.createElement("tr");
     tr.style.cursor = "pointer";
-    tr.addEventListener("click", () => openJobDrawer(job));
+    tr.addEventListener("click", () => openDrawer(job));
+    
+    // Checkbox column
+    const tdCheck = document.createElement("td");
+    tdCheck.style.textAlign = "center";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "yc-job-select";
+    chk.value = job.job_id;
+    chk.style.cursor = "pointer";
+    chk.style.width = "16px";
+    chk.style.height = "16px";
+    chk.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateBulkApplyButtonVisibility();
+    });
+    tdCheck.appendChild(chk);
+    tr.appendChild(tdCheck);
     
     const tdTitle = document.createElement("td");
     tdTitle.style.fontWeight = "600";
-    
-    const link = document.createElement("a");
-    link.href = job.apply_url || "https://www.workatastartup.com/companies";
-    link.target = "_blank";
-    link.innerText = job.title || "Untitled Position";
-    link.style.color = "var(--primary-color)";
-    link.style.textDecoration = "none";
-    link.addEventListener("click", (e) => {
-        e.stopPropagation();
-    });
-    
-    tdTitle.appendChild(link);
+    tdTitle.innerText = job.title || "Untitled Position";
     tr.appendChild(tdTitle);
     
     const tdCompany = document.createElement("td");
@@ -1738,4 +1825,134 @@ function formatRelativeTime(isoString) {
     } catch (e) {
         return isoString;
     }
+}
+
+// Bulk selection and auto-apply helpers
+function updateBulkApplyButtonVisibility() {
+    const mainChecked = document.querySelectorAll(".main-job-select:checked");
+    if (elements.btnBulkApplyMain) {
+        if (mainChecked.length > 0) {
+            elements.btnBulkApplyMain.style.display = "inline-flex";
+            elements.btnBulkApplyMain.innerText = `Bulk Apply Selected (${mainChecked.length}) 🚀`;
+        } else {
+            elements.btnBulkApplyMain.style.display = "none";
+        }
+    }
+    
+    const ycChecked = document.querySelectorAll(".yc-job-select:checked");
+    if (elements.btnBulkApplyYc) {
+        if (ycChecked.length > 0) {
+            elements.btnBulkApplyYc.style.display = "inline-flex";
+            elements.btnBulkApplyYc.innerText = `Bulk Apply Selected (${ycChecked.length}) 🚀`;
+        } else {
+            elements.btnBulkApplyYc.style.display = "none";
+        }
+    }
+}
+
+async function triggerBulkApply(type) {
+    const selector = type === "main" ? ".main-job-select:checked" : ".yc-job-select:checked";
+    const checkedBoxes = document.querySelectorAll(selector);
+    
+    if (checkedBoxes.length === 0) return;
+    
+    showToast(`Opening ${checkedBoxes.length} application pages. Please check and allow popups!`, "warning");
+    
+    let openedCount = 0;
+    const jobIdsToUpdate = [];
+    
+    checkedBoxes.forEach(chk => {
+        const jobId = chk.value;
+        const job = jobsData.find(j => j.job_id === jobId);
+        if (job && job.apply_url) {
+            window.open(job.apply_url, "_blank");
+            openedCount++;
+            
+            if (!job.status || job.status === "New" || job.status === "Interested") {
+                jobIdsToUpdate.push(jobId);
+            }
+        }
+    });
+    
+    if (jobIdsToUpdate.length > 0) {
+        try {
+            for (let jobId of jobIdsToUpdate) {
+                const job = jobsData.find(j => j.job_id === jobId);
+                if (job) job.status = "Applied";
+                
+                await fetch(`/api/jobs/${jobId}/status`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "Applied" })
+                });
+            }
+            
+            showToast(`Opened ${openedCount} jobs and updated status to "Applied"!`, "success");
+            
+            // Rerender tables
+            if (type === "main") {
+                filterAndRenderJobs();
+                if (elements.selectAllMain) elements.selectAllMain.checked = false;
+            } else {
+                filterAndRenderYcJobs();
+                if (elements.selectAllYc) elements.selectAllYc.checked = false;
+            }
+            
+            checkedBoxes.forEach(chk => chk.checked = false);
+            updateBulkApplyButtonVisibility();
+            
+        } catch (e) {
+            console.error("Error auto-updating bulk status:", e);
+        }
+    }
+}
+
+// Auto-fill bookmarklet generator
+function updateBookmarkletLink() {
+    const linkEl = document.getElementById("bookmarkletLink");
+    if (!linkEl) return;
+    
+    const profile = {
+        name: configData.profile_fullname || "",
+        email: configData.profile_email || "",
+        phone: configData.profile_phone || "",
+        github: configData.profile_github || "",
+        linkedin: configData.profile_linkedin || "",
+        portfolio: configData.profile_portfolio || ""
+    };
+    
+    const code = `javascript:(function(){
+        const data = ${JSON.stringify(profile)};
+        
+        function fillField(selectors, value) {
+            if (!value) return false;
+            for (let selector of selectors) {
+                const elements = document.querySelectorAll(selector);
+                for (let el of elements) {
+                    el.value = value;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    
+                    const tracker = el._valueTracker;
+                    if (tracker) tracker.setValue(value);
+                }
+            }
+            return true;
+        }
+        
+        fillField(['#first_name', '#name', 'input[name*="name" i]', 'input[autocomplete*="name" i]'], data.name);
+        fillField(['#email', 'input[name*="email" i]', 'input[type="email" i]', 'input[autocomplete*="email" i]'], data.email);
+        fillField(['#phone', '#phone_number', 'input[name*="phone" i]', 'input[type="tel" i]', 'input[autocomplete*="tel" i]'], data.phone);
+        fillField(['input[name*="github" i]', 'input[placeholder*="github" i]'], data.github);
+        fillField(['input[name*="linkedin" i]', 'input[placeholder*="linkedin" i]'], data.linkedin);
+        fillField(['input[name*="website" i]', 'input[name*="portfolio" i]', 'input[placeholder*="website" i]', 'input[placeholder*="portfolio" i]'], data.portfolio);
+        
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#10B981;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
+        notification.innerText = '✨ Auto-filled Application Form! ✨';
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 2500);
+    })();`;
+    
+    linkEl.href = code.replace(/\\s+/g, " ");
 }
