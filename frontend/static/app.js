@@ -2048,7 +2048,7 @@ function updateBookmarkletLink() {
         });
         
         if (questions.length === 0) {
-            showSuccessNotification('Auto-filled standard profile details!');
+            showSuccessNotification('Auto-filled standard profile details! Please review all fields before manual submission.');
             return;
         }
         
@@ -2091,7 +2091,7 @@ function updateBookmarkletLink() {
                         }
                     }
                 });
-                showSuccessNotification('✨ Auto-filled profile and generated answers for ' + filledCount + ' custom questions! ✨');
+                showSuccessNotification('✨ Auto-filled form + ' + filledCount + ' AI answers! Please verify all details and manually submit when ready. ✨');
             } else {
                 showErrorNotification('AI generation failed: ' + (resData.message || 'Unknown error'));
             }
@@ -2117,7 +2117,7 @@ function updateBookmarkletLink() {
             div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;background:#10B981;color:white;font-weight:bold;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-family:sans-serif;font-size:14px;';
             div.innerText = msg;
             document.body.appendChild(div);
-            setTimeout(removeNotification, 3500);
+            setTimeout(removeNotification, 7000);
         }
         
         function showErrorNotification(msg) {
