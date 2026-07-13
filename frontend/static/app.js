@@ -2026,25 +2026,58 @@ function updateBookmarkletLink() {
         const questions = [];
         const questionElements = [];
         
-        document.querySelectorAll('.application-question').forEach(qBlock => {
-            const label = qBlock.querySelector('.application-label');
-            const input = qBlock.querySelector('input[type="text"], textarea');
-            if (label && input) {
-                questions.push(label.innerText.trim());
-                questionElements.push({ label: label.innerText.trim(), input: input });
+        function findLabelForInput(input) {
+            if (input.id) {
+                const lbl = document.querySelector('label[for="' + input.id + '"]');
+                if (lbl && lbl.innerText.trim()) return lbl.innerText.trim();
             }
-        });
-        
-        document.querySelectorAll('.field').forEach(qBlock => {
-            const label = qBlock.querySelector('label');
-            const input = qBlock.querySelector('input[type="text"], textarea');
-            if (label && input) {
-                const name = input.name || "";
-                if (!name.includes('name') && !name.includes('email') && !name.includes('phone') && !name.includes('resume') && !name.includes('github') && !name.includes('linkedin') && !name.includes('website')) {
-                    questions.push(label.innerText.replace('*', '').trim());
-                    questionElements.push({ label: label.innerText.replace('*', '').trim(), input: input });
+            let parent = input.parentElement;
+            while (parent) {
+                if (parent.tagName === 'LABEL') {
+                    if (parent.innerText.trim()) return parent.innerText.trim();
+                }
+                parent = parent.parentElement;
+            }
+            let prev = input.previousElementSibling;
+            while (prev) {
+                if (prev.tagName === 'LABEL' || prev.tagName === 'SPAN' || prev.tagName === 'DIV' || prev.tagName.match(/^H[1-6]$/)) {
+                    const txt = prev.innerText.trim();
+                    if (txt && txt.length > 5 && txt.length < 300) return txt;
+                }
+                prev = prev.previousElementSibling;
+            }
+            let pContainer = input.closest('div, td, li, section');
+            if (pContainer) {
+                const potentialLabels = pContainer.querySelectorAll('label, span, div, p, strong');
+                for (let pl of potentialLabels) {
+                    if (pl !== input && pl.innerText.trim().length > 5 && pl.innerText.trim().length < 300) {
+                        return pl.innerText.trim();
+                    }
                 }
             }
+            return input.placeholder || input.name || "";
+        }
+        
+        const allInputs = document.querySelectorAll('input[type="text"], textarea');
+        allInputs.forEach(input => {
+            if (input.offsetParent === null || input.disabled || input.readOnly) return;
+            const name = (input.name || "").toLowerCase();
+            const id = (input.id || "").toLowerCase();
+            const placeholder = (input.placeholder || "").toLowerCase();
+            
+            const standardKeywords = ['name', 'email', 'phone', 'tel', 'resume', 'cv', 'github', 'linkedin', 'portfolio', 'website', 'social', 'address', 'location', 'zip', 'city', 'country', 'search', 'filter'];
+            const isStandard = standardKeywords.some(kw => name.includes(kw) || id.includes(kw) || placeholder.includes(kw));
+            if (isStandard) return;
+            
+            let labelText = findLabelForInput(input);
+            labelText = labelText.replace(/\\*+/g, '').replace(/:\\s*$/, '').trim();
+            
+            if (labelText.length < 3) return;
+            const isLabelStandard = standardKeywords.some(kw => labelText.toLowerCase().includes(kw));
+            if (isLabelStandard) return;
+            
+            questions.push(labelText);
+            questionElements.push({ label: labelText, input: input });
         });
         
         if (questions.length === 0) {
