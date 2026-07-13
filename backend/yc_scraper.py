@@ -69,7 +69,7 @@ def scrape_yc_startup_jobs():
                 "experience": job_exp_str,
                 "tech_stack": job_tech_list,
                 "salary": salary,
-                "apply_url": f"https://www.workatastartup.com/companies/{company_slug}" if company_slug else "https://www.workatastartup.com/companies",
+                "apply_url": f"https://www.workatastartup.com/application?signup_job_id={job.get('id')}" if job.get('id') else "https://www.workatastartup.com/companies",
                 "source": "Y Combinator",
                 "date_posted": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "is_targeted": 0,

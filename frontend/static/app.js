@@ -740,7 +740,18 @@ function createJobRow(job) {
     // Job Title
     const tdTitle = document.createElement("td");
     tdTitle.style.fontWeight = "600";
-    tdTitle.innerText = job.title || "Untitled Position";
+    
+    const link = document.createElement("a");
+    link.href = job.apply_url || "#";
+    link.target = "_blank";
+    link.innerText = job.title || "Untitled Position";
+    link.style.color = "var(--primary-color)";
+    link.style.textDecoration = "none";
+    link.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+    
+    tdTitle.appendChild(link);
     
     // Company
     const tdCompany = document.createElement("td");
@@ -1620,7 +1631,18 @@ function createYcJobRow(job) {
     
     const tdTitle = document.createElement("td");
     tdTitle.style.fontWeight = "600";
-    tdTitle.innerText = job.title || "Untitled Position";
+    
+    const link = document.createElement("a");
+    link.href = job.apply_url || "https://www.workatastartup.com/companies";
+    link.target = "_blank";
+    link.innerText = job.title || "Untitled Position";
+    link.style.color = "var(--primary-color)";
+    link.style.textDecoration = "none";
+    link.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+    
+    tdTitle.appendChild(link);
     tr.appendChild(tdTitle);
     
     const tdCompany = document.createElement("td");
